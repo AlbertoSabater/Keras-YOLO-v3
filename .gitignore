@@ -107,4 +107,4 @@ venv.bak/
 *.weights
 
 # pretrained models
-pre_models/*.h5
+base_models/*.h5
