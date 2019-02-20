@@ -102,3 +102,9 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# weight files
+*.weights
+
+# pretrained models
+pre_models/*.h5
