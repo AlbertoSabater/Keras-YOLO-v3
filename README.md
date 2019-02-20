@@ -1,1 +1,1 @@
-# Egocentric-object-detection
+# Egocentric object detection
