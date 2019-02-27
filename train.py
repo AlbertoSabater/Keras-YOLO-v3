@@ -22,7 +22,7 @@ import json
 
 # tensorboard --logdir /media/asabater/hdd/egocentric
 
-path_results = '/media/asabater/hdd/egocentric_results/'
+path_results = '/mnt/hdd/egocentric_results/'
 print_indnt = 12
 print_line = 100
 
@@ -33,16 +33,18 @@ freeze_body = 1     # freeze_body = 1 -> freeze prertained layers
                     # freeze_body = otro -> don't freeze
 input_shape = (416,416) # multiple of 32, hw
 val_split = 0.1
-batch_size_frozen = 32
-batch_size_unfrozen = 32 # note that more GPU memory is required after unfreezing the body
+batch_size_frozen = 32          # 32
+batch_size_unfrozen = 32        # note that more GPU memory is required after unfreezing the body
+frozen_epochs = 1               # 50
 
 
 anchors_path = 'base_models/yolo_anchors.txt'
 
 # Get dataset annotations, classes and anchors
 if dataset_name == 'adl':
-    path_annotations = '/media/asabater/hdd/datasets/adl_dataset/annotations_adl.txt'
-    path_classes = '/media/asabater/hdd/datasets/adl_dataset/adl_classes.txt'
+    path_dataset = '/home/asabater/projects/ADL_dataset/ADL_frames/'
+    path_annotations = '/home/asabater/projects/ADL_dataset/annotations_adl.txt'
+    path_classes = '/home/asabater/projects/ADL_dataset/adl_classes.txt'
 elif dataset_name == 'epic':
     path_annotations = '/home/asabater/projects/epic_dataset/annotations_epic_train.txt'
     path_classes = '/home/asabater/projects/epic_dataset/epic_classes.txt'
@@ -106,6 +108,7 @@ train_params = {
                 'val_split': val_split,
                 'batch_size_frozen': batch_size_frozen,
                 'batch_size_unfrozen': batch_size_unfrozen,
+                'frozen_epochs': frozen_epochs,
                 'anchors_path': anchors_path,
                 'path_annotations': path_annotations,
                 'path_classes': path_classes,
@@ -140,7 +143,7 @@ if True:
             steps_per_epoch = max(1, num_train//batch_size_frozen),
             validation_data = ktrain.data_generator_wrapper(lines[num_train:], batch_size_frozen, input_shape, anchors, num_classes),
             validation_steps = max(1, num_val//batch_size_frozen),
-            epochs = 50,
+            epochs = frozen_epochs,
             initial_epoch = 0,
             callbacks=[logging, checkpoint])
     model.save_weights(path_model + 'trained_weights_stage_1.h5')

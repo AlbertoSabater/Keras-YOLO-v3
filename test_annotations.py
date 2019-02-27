@@ -16,11 +16,12 @@ import colorsys
 perc = 1
 wait_time = 2
 
-annotations_file = '/media/asabater/hdd/datasets/imagenet_vid/annotations_train.txt'
-classes = '/media/asabater/hdd/datasets/imagenet_vid/imagenet_vid_classes.txt'
+#annotations_file = '/media/asabater/hdd/datasets/imagenet_vid/annotations_train.txt'
+#classes = '/media/asabater/hdd/datasets/imagenet_vid/imagenet_vid_classes.txt'
 
-#annotations_file = '/media/asabater/hdd/datasets/adl_dataset/annotations_adl.txt'
-#classes = '/media/asabater/hdd/datasets/adl_dataset/adl_classes.txt'
+annotations_file = '/home/asabater/projects/ADL_dataset/annotations_adl.txt'
+classes = '/home/asabater/projects/ADL_dataset/adl_classes.txt'
+
 
 #annotations_file = '/home/asabater/projects/epic_dataset/annotations_epic_train.txt'
 #classes = '/home/asabater/projects/epic_dataset/epic_classes.txt'
