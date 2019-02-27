@@ -33,7 +33,7 @@ class EYOLO(YOLO):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
 
-        print(image_data.shape)
+#        print('nn_input', image_data.shape)
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
@@ -45,7 +45,7 @@ class EYOLO(YOLO):
                 K.learning_phase(): 0
             })
 
-        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+#        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
         font = ImageFont.truetype(font='keras_yolo3/font/FiraMono-Medium.otf',
                     size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
@@ -65,7 +65,7 @@ class EYOLO(YOLO):
             left = max(0, np.floor(left + 0.5).astype('int32'))
             bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-            print(label, (left, top), (right, bottom))
+#            print(label, (left, top), (right, bottom))
 
             if top - label_size[1] >= 0:
                 text_origin = np.array([left, top - label_size[1]])
@@ -84,7 +84,7 @@ class EYOLO(YOLO):
             del draw
 
         end = timer()
-        print(end - start)
+#        print(end - start)
         return image
 
 
@@ -109,14 +109,19 @@ def detect_video(yolo, video_path, output_path="", close_session=True):
         return_value, frame = vid.read()
         
         if frame is None: 
-            cv2.waitKey(1)
-            cv2.destroyAllWindows()
-            cv2.waitKey(1)
+#            cv2.waitKey(1)
+#            cv2.destroyAllWindows()
+#            cv2.waitKey(1)
             break
     
+#        print(1, type(frame), frame.shape)
         image = Image.fromarray(frame)
+#        print(2, type(image), image.size)
         image = yolo.detect_image(image)
+#        print(3, type(image), image.size)
         result = np.asarray(image)
+#        print(4, type(result),result.shape)
+        
         curr_time = timer()
         exec_time = curr_time - prev_time
         prev_time = curr_time
@@ -136,3 +141,48 @@ def detect_video(yolo, video_path, output_path="", close_session=True):
             break
     
     if close_session: yolo.close_session()
+    
+    
+
+def detect_video_folder(yolo, video_folder):
+    import cv2
+    import os
+    
+    frames = os.listdir(video_folder)
+    prev_time = timer()
+
+    accum_time = 0
+    curr_fps = 0
+    fps = "FPS: ??"
+    
+    for fr in frames:
+        
+        image = cv2.imread(video_folder + fr)
+        image = Image.fromarray(image)
+        image = yolo.detect_image(image)
+        result = np.asarray(image)
+        
+        curr_time = timer()
+        exec_time = curr_time - prev_time
+        prev_time = curr_time
+        accum_time = accum_time + exec_time
+        curr_fps = curr_fps + 1
+        if accum_time > 1:
+            accum_time = accum_time - 1
+            fps = "FPS: " + str(curr_fps)
+            curr_fps = 0
+        cv2.putText(result, text=fps, org=(3, 15), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                    fontScale=0.50, color=(255, 0, 0), thickness=2)
+        cv2.namedWindow("result", cv2.WINDOW_NORMAL)
+        cv2.imshow("result", result)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    return result
+    
+
+
+    
+    
+    
+    
