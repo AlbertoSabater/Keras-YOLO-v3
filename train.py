@@ -35,7 +35,7 @@ input_shape = (416,416) # multiple of 32, hw
 val_split = 0.1
 batch_size_frozen = 32          # 32
 batch_size_unfrozen = 8        # note that more GPU memory is required after unfreezing the body
-frozen_epochs = 10               # 50
+frozen_epochs = 15               # 50
 
 
 
@@ -55,12 +55,15 @@ if dataset_name == 'adl':
     path_annotations = ['/home/asabater/projects/ADL_dataset/annotations_adl_train.txt',
                         '/home/asabater/projects/ADL_dataset/annotations_adl_val.txt']
     path_classes = '/home/asabater/projects/ADL_dataset/adl_classes.txt'
+    
 elif dataset_name == 'epic':
     path_annotations = '/home/asabater/projects/epic_dataset/annotations_epic_train.txt'
     path_classes = '/home/asabater/projects/epic_dataset/epic_classes.txt'
+    
 elif dataset_name == 'imagenet':
     path_annotations = '/media/asabater/hdd/datasets/imagenet_vid/annotations_train.txt'
     path_classes = '/media/asabater/hdd/datasets/imagenet_vid/imagenet_vid_classes.txt'
+    
 else: raise ValueError('Dataset not recognized')
 
 # Load dataset classes and anchors
@@ -108,7 +111,7 @@ print('='*print_line)
 
 # Train callbacks
 logging = TensorBoard(log_dir = path_model)
-checkpoint = ModelCheckpoint(path_model + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5',
+checkpoint = ModelCheckpoint(path_model + 'weights/' + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5',
                              monitor='val_loss', 
                              save_weights_only=True, 
                              save_best_only=True, 
@@ -168,10 +171,11 @@ if True:
             epochs = frozen_epochs,
             initial_epoch = 0,
             callbacks=[logging, checkpoint])
-    model.save_weights(path_model + 'trained_weights_stage_1.h5')
+    model.save_weights(path_model + 'weights/trained_weights_stage_1.h5')
 print('='*print_line)
 
 
+# %%
 
 # =============================================================================
 # Unfreeze and continue training, to fine-tune.
@@ -187,7 +191,7 @@ if True:
     optimizer = Adam(lr=1e-4)
     model.compile(optimizer = optimizer,
                   loss = {'yolo_loss': lambda y_true, y_pred: y_pred},        # use custom yolo_loss Lambda layer.
-                  metrics = train_utils.get_lr_metric(optimizer)
+                  metrics = [train_utils.get_lr_metric(optimizer)]
                   )
 
 
@@ -200,7 +204,7 @@ if True:
         epochs = 500,
         initial_epoch = frozen_epochs,
         callbacks = [logging, checkpoint, reduce_lr, early_stopping])
-    model.save_weights(path_model + 'trained_weights_final.h5')
+    model.save_weights(path_model + 'weights/trained_weights_final.h5')
 print('='*print_line)
     
     
