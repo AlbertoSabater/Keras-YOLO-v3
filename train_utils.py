@@ -47,7 +47,7 @@ def remove_null_trainings(path_results, dataset_name):
     
     models_to_remove = []
     for model in models:
-        if 'trained_weights_stage_1.h5' not in os.listdir(folder_models + model + '/weights/'):
+        if 'weights' not in os.listdir(folder_models + model) or 'trained_weights_stage_1.h5' not in os.listdir(folder_models + model + '/weights/'):
             models_to_remove.append(model)
             
     for mtr in models_to_remove:
@@ -67,6 +67,17 @@ def remove_null_trainings(path_results, dataset_name):
         count += 1
 
 
+def get_best_weights(model_folder):
+    files = [ f for f in os.listdir(model_folder + '/weights/') if f.startswith('ep') ]
+    val_losses = [ [ float(v[8:]) for v in f[:-3].split('-') if v.startswith('val_loss') ][0] for f in files ]
+    model_weights = model_folder + 'weights/' + files[val_losses.index(min(val_losses))]
+    return model_weights
+
+def get_model_path(path_results, dataset_name, model_num):
+    return '{}{}/{}/'.format(path_results, dataset_name, 
+                [ f for f in os.listdir(path_results + dataset_name) if f.endswith('model_{}'.format(model_num)) ][0])
+
+
 # Remove the worst weights of a model
 def remove_worst_weights(path_model):
     files_model = [ '/weights/' + f for f in os.listdir(path_model + '/weights') if f.endswith('.h5') and not f.startswith('trained_weights') ]
@@ -84,10 +95,6 @@ def get_lr_metric(optimizer):
     def lr(y_true, y_pred):
         return optimizer.lr
     return lr
-
-
-
-
 
 
 
