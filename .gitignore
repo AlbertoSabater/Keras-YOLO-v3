@@ -108,3 +108,10 @@ venv.bak/
 
 # pretrained models
 base_models/*.h5
+
+# skip dataset_scripts *.txt/json
+dataset_scripts/**/*.txt
+dataset_scripts/**/*.json
+
+# skip all pickle files
+*.pckl
