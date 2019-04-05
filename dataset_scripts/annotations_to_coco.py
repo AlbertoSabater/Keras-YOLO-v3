@@ -92,9 +92,15 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
 
 
 
-
-
-
+if __name__ == '__main__':
+    # your code
+    
+    for ann in ['train', 'val']:
+#        dataset_annotations_filename = './voc/annotations_voc_{}.txt'.format(ann)
+#        dataset_classes_filename = './voc/voc_classes.txt'
+        dataset_annotations_filename = './coco/annotations_coco_val.txt'
+        dataset_classes_filename = './coco/coco_classes.txt'
+        annotations_to_coco(dataset_annotations_filename, dataset_classes_filename)
 
 
 

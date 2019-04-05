@@ -67,11 +67,11 @@ class EYOLO_Kmeans(YOLO_Kmeans):
 if __name__ == "__main__":
 
     cluster_number = 9
-    img_size = 608
-    filename = "./adl/annotations_adl_train_{}.txt".format(img_size)
+    suffix = ''
+    filename = "./voc/annotations_voc_train{}.txt".format(suffix)
     kmeans = EYOLO_Kmeans(cluster_number, filename)
     anchors = kmeans.get_best_anchors()
-    kmeans.result2txt(anchors, './adl/anchors_adl_{}.txt'.format(img_size))
+    kmeans.result2txt(anchors, './voc/anchors_voc{}.txt'.format(suffix))
 
 
 

@@ -14,25 +14,35 @@ from dataset_scripts.annotations_to_coco import annotations_to_coco
 from dataset_scripts.generate_custom_anchors import EYOLO_Kmeans
 
 
-version = 'v2'
 path_classes = './dataset_scripts/adl/adl_classes.txt'
-path_annotations = ['./dataset_scripts/adl/annotations_adl_train_{}.txt',
-                        './dataset_scripts/adl/annotations_adl_val_{}.txt'
+path_annotations = ['./dataset_scripts/adl/annotations_adl_train{}.txt',
+                        './dataset_scripts/adl/annotations_adl_val{}.txt'
                         ]
 remove_empty_frames = True
 cluster_number = 9
 
-merge_classes = [
-                    (['trash_can', 'basket', 'container', 'large_container'], 'generic_container'),
-                    (['monitor', 'tv'], 'monitor/tv'),
-                    (['shoe', 'shoes'], 'shoes'),
-                    (['perfume', 'bottle', 'milk/juice'], 'bottle'),
-                    (['cell', 'cell_phone'], 'cell_phone')
-                ]
-remove_classes = ['keyboard', 'dent_floss', 'blanket']
-remove_classes += ['comb', 'thermostat', 'tea_bag', 'pills', 'mop', 'vacuum', 
-                   'bed', 'detergent', 'electric_keys']
 
+#version = 'v2'
+#merge_classes = [
+#                    (['trash_can', 'basket', 'container', 'large_container'], 'generic_container'),
+#                    (['monitor', 'tv'], 'monitor/tv'),
+#                    (['shoe', 'shoes'], 'shoes'),
+#                    (['perfume', 'bottle', 'milk/juice'], 'bottle'),
+#                    (['cell', 'cell_phone'], 'cell_phone')
+#                ]
+#remove_classes = ['keyboard', 'dent_floss', 'blanket']
+#remove_classes += ['comb', 'thermostat', 'tea_bag', 'pills', 'mop', 'vacuum', 
+#                   'bed', 'detergent', 'electric_keys']
+
+version = 'v3'
+merge_classes = [(['monitor', 'tv'], 'monitor/tv')]
+class_names = ktrain.get_classes(path_classes)
+remove_classes = [ c for c in class_names if c not in 
+                          ['mug/cup', 'tap', 'laptop', 'monitor/tv', 
+                           'knife/spoon/fork', 'washer/dryer','pan', 'microwave'] ]
+
+
+#%%
 
 
 def parse_annotation(annotation):
@@ -71,6 +81,10 @@ def merge_classes_in_annotations(annotations, merge_classes, class_names):
 def remove_classes_in_annotations(annotations, remove_classes, class_names):
     for rc in remove_classes:
         
+        if rc not in class_names:
+            print(rc, 'not in class_names')
+            continue
+        
         rc_ind = class_names.index(rc)
         
         del class_names[rc_ind]
@@ -93,10 +107,9 @@ def remove_classes_in_annotations(annotations, remove_classes, class_names):
 
 
 
-
-for img_size in [320, 416, 608]:
+for suffix in ['', '_320', '_416', '_608']:
     for annotations_file in path_annotations:
-        annotations_file = annotations_file.format(img_size)
+        annotations_file = annotations_file.format(suffix)
         
         class_names = ktrain.get_classes(path_classes)
         with open(annotations_file) as f: annotations = [ l for l in f.read().splitlines() ]
@@ -125,7 +138,7 @@ for img_size in [320, 416, 608]:
         annotations_to_coco(new_annotations_file, new_classes_file)
 
         anchors_filename = '/'.join(annotations_file.split('/')[:-1]) + \
-                                    '/anchors_adl_{}_{}_{}.txt'.format(img_size, version, len(class_names))
+                                    '/anchors_adl{}_{}_{}.txt'.format(suffix, version, len(class_names))
         kmeans = EYOLO_Kmeans(cluster_number, new_annotations_file)
         anchors = kmeans.get_best_anchors()
         kmeans.result2txt(anchors, anchors_filename)
