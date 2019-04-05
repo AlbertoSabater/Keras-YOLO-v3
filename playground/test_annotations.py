@@ -14,16 +14,32 @@ import colorsys
 
 
 perc = 1
-wait_time = 350
 
-#annotations_file = '/media/asabater/hdd/datasets/imagenet_vid/annotations_train.txt'
+annotations_file = '/media/asabater/hdd/datasets/imagenet_vid/annotations_train.txt'
 #classes = '/media/asabater/hdd/datasets/imagenet_vid/imagenet_vid_classes.txt'
 
-path_dataset = '/home/asabater/projects/ADL_dataset/'
-#path_dataset = '/home/asabater/projects/ADL_dataset/ADL_frames_416/'
-path_annotations = ['./dataset_scripts/adl/annotations_adl_train_608_v2_36.txt',
-                    './dataset_scripts/adl/annotations_adl_val_608_v2_36.txt']
-classes = './dataset_scripts/adl/adl_classes_v2_36.txt'
+#path_dataset = '/home/asabater/projects/ADL_dataset/'
+#suffix = '_608'
+#path_annotations = ['./dataset_scripts/adl/annotations_adl_train{}.txt'.format(suffix),
+#                    './dataset_scripts/adl/annotations_adl_val{}.txt'.format(suffix)]
+#classes = './dataset_scripts/adl/adl_classes.txt'
+
+#path_annotations = ['./dataset_scripts/adl/annotations_adl_train_608_v2_27.txt',
+#                    './dataset_scripts/adl/annotations_adl_val_608_v2_27.txt']
+#classes = './dataset_scripts/adl/adl_classes_v2_27.txt'
+
+#path_dataset = '/mnt/hdd/datasets/VOC/'
+#path_annotations = ['./dataset_scripts/voc/annotations_voc_train.txt',
+#                    './dataset_scripts/voc/annotations_voc_val.txt']
+#classes = './dataset_scripts/voc/voc_classes.txt'
+
+path_dataset = '/mnt/hdd/datasets/coco/'
+path_annotations = ['./dataset_scripts/coco/annotations_coco_train.txt',
+                    './dataset_scripts/coco/annotations_coco_val.txt']
+classes = './dataset_scripts/coco/coco_classes.txt'
+#path_annotations = ['./dataset_scripts/coco/annotations_coco_train_super.txt',
+#                    './dataset_scripts/coco/annotations_coco_val_super.txt']
+#classes = './dataset_scripts/coco/coco_classes_super.txt'
 
 
 #annotations_file = '/home/asabater/projects/epic_dataset/annotations_epic_train.txt'
@@ -110,9 +126,11 @@ def get_samples_containing_classes(samples, filter_classes):
 
         
 # %%
-    
-#samples = get_random_init(samples)
-samples = get_samples_containing_classes(annotations, [classes.index('cloth')])
+  
+wait_time = 600
+
+samples = get_random_init(annotations)
+#samples = get_samples_containing_classes(annotations, [classes.index('cloth')])
 
 for sample in samples[0::10]:
     

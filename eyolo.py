@@ -234,8 +234,7 @@ def detect_video_folder(yolo, video_folder, wk=1):
     return result
     
 
-def predict_annotations(model, annotations, wk):
-#    annotations = './dataset_scripts/adl/annotations_adl_train_416.txt'
+def predict_annotations(model, annotations, path_base, wk):
     with open(annotations, 'r') as f: annotations = f.read().splitlines()
     annotations = annotations[random.randint(0, len(annotations)):]
     
@@ -255,7 +254,7 @@ def predict_annotations(model, annotations, wk):
         boxes = [ bb[:-1] for bb in boxes ]
         boxes = [ [bb[1],bb[0],bb[3],bb[2]] for bb in boxes ]
         
-        image = cv2.imread('/home/asabater/projects/ADL_dataset/' + img)
+        image = cv2.imread(path_base + img)
         image = Image.fromarray(image)    
         image = model.print_boxes(image, boxes, classes, color=(0,255,0))
 
