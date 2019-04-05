@@ -8,7 +8,7 @@ Created on Tue Feb 26 15:03:59 2019
 
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID";
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  
 
 
 import sys
@@ -37,16 +37,17 @@ num_gpu = len([x for x in device_lib.list_local_devices() if x.device_type == 'G
 
 
 dataset_name = 'adl'
+path_weights = 'base_models/yolo.h5'
+#path_weights = 'base_models/darknet53.h5'
 freeze_body = 2                 # freeze_body = 1 -> freeze feature extractor
                                 # freeze_body = 2 -> freeze all but 3 output layers
                                 # freeze_body = otro -> don't freeze
 input_shape = (416,416)         # multiple of 32, hw
-path_weights = 'base_models/yolo.h5'
-#path_weights = 'base_models/darknet53.h5'
+
 #val_split = 0.1
 batch_size_frozen = 32          # 32
-batch_size_unfrozen = 8         # note that more GPU memory is required after unfreezing the body
-frozen_epochs = 15              # 50
+batch_size_unfrozen = 4         # note that more GPU memory is required after unfreezing the body
+frozen_epochs = 15               # 50
 
 
 
@@ -58,20 +59,49 @@ print('='*print_line)
 
 path_anchors = 'base_models/yolo_anchors.txt'
 path_dataset = ''
+version = -1
 
 # Get dataset annotations, classes and anchors
 if dataset_name == 'adl':
 #    path_dataset = '/mnt/hdd/datasets/adl_dataset/ADL_frames/'
-    version = '_v2_27'
-    img_size = 416
+    version = '_v2_27'        # _v2_27
+    size_suffix = ''         # '_416'
     input_shape = (416,416)
     path_dataset = '/home/asabater/projects/ADL_dataset/'
-    path_annotations = ['./dataset_scripts/adl/annotations_adl_train_{}{}.txt'.format(img_size, version),
-                        './dataset_scripts/adl/annotations_adl_val_{}{}.txt'.format(img_size, version)]
+    path_annotations = ['./dataset_scripts/adl/annotations_adl_train{}{}.txt'.format(size_suffix, version),
+                        './dataset_scripts/adl/annotations_adl_val{}{}.txt'.format(size_suffix, version)]
 #    path_annotations = ['/home/asabater/projects/ADL_dataset/annotations_adl_train.txt',
 #                        '/home/asabater/projects/ADL_dataset/annotations_adl_val.txt']
     path_classes = './dataset_scripts/adl/adl_classes{}.txt'.format(version)
+#    path_anchors = './dataset_scripts/adl/anchors_adl{}{}.txt'.format(size_suffix, version)
+
+elif dataset_name == 'coco':    
+    # 117266 train images
+    # 4952 val images
+    # 80/12 categories
     
+    version = '_super'
+    input_shape = (416,416)
+    path_dataset = '/mnt/hdd/datasets/coco/'
+    
+    
+    path_annotations = ['./dataset_scripts/coco/annotations_coco_train{}.txt'.format(version),
+                    './dataset_scripts/coco/annotations_coco_val{}.txt'.format(version)]
+    path_classes = './dataset_scripts/coco/coco_classes{}.txt'.format(version)
+    
+elif dataset_name == 'voc':
+#    path_dataset = '/mnt/hdd/datasets/adl_dataset/ADL_frames/'
+    input_shape = (416,416)
+    version = ''
+    size_suffix = ''
+    path_dataset = '/mnt/hdd/datasets/VOC/'
+    path_annotations = ['./dataset_scripts/voc/annotations_voc_train.txt',
+                        './dataset_scripts/voc/annotations_voc_val.txt']
+#    path_annotations = ['/home/asabater/projects/ADL_dataset/annotations_adl_train.txt',
+#                        '/home/asabater/projects/ADL_dataset/annotations_adl_val.txt']
+    path_classes = './dataset_scripts/voc/voc_classes.txt'
+    path_anchors = './dataset_scripts/voc/anchors_voc{}{}.txt'.format(size_suffix, version)
+
 elif dataset_name == 'epic':
     path_annotations = '/home/asabater/projects/epic_dataset/annotations_epic_train.txt'
     path_classes = '/home/asabater/projects/epic_dataset/epic_classes.txt'
@@ -251,7 +281,7 @@ if True:
         steps_per_epoch = max(1, num_train//batch_size_unfrozen),
 #        validation_data = ktrain.data_generator_wrapper(lines_val, batch_size_unfrozen, input_shape, anchors, num_classes),
 #        validation_data = train_utils.data_generator_wrapper(lines_val, batch_size_unfrozen, input_shape, anchors, num_classes, random=True),
-        validation_data = data_generator_wrapper_default(lines_train, batch_size_unfrozen, input_shape, anchors, num_classes, random=False),
+        validation_data = data_generator_wrapper_default(lines_val, batch_size_unfrozen, input_shape, anchors, num_classes, random=False),
         validation_steps = max(1, num_val//batch_size_unfrozen),
         epochs = 500,
         initial_epoch = frozen_epochs,
