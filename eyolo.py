@@ -14,22 +14,87 @@ from PIL import Image, ImageFont, ImageDraw
 import numpy as np
 
 from keras import backend as K
+from keras.models import load_model
+from keras.layers import Input
+from keras.utils import multi_gpu_model
+
 from yolo3.utils import letterbox_image
 from yolo import YOLO
+
+from emodel import yolo_body, r_yolo_body
+from yolo3.model import tiny_yolo_body, yolo_eval
 
 import cv2
 import os
 import random
+import colorsys
 
 
 class EYOLO(YOLO):
+    
+    def generate(self):
+        model_path = os.path.expanduser(self.model_path)
+        assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+
+        # Load model, or construct model and load weights.
+        num_anchors = len(self.anchors)
+        num_classes = len(self.class_names)
+        is_tiny_version = num_anchors==6 # default setting
+        try:
+            self.yolo_model = load_model(model_path, compile=False)
+        except:
+            if self.td_len is not None and self.mode is not None:
+                self.yolo_model = r_yolo_body(Input(shape=(self.td_len, None, None, 3)), 
+                                              num_anchors//3, num_classes, self.td_len, self.mode)
+            elif is_tiny_version:
+                self.yolo_model = tiny_yolo_body(Input(shape=(None,None,3)), num_anchors//2, num_classes)
+            else:
+                self.yolo_model = yolo_body(Input(shape=(None,None,3)), num_anchors//3, num_classes)
+#            self.yolo_model = tiny_yolo_body(Input(shape=(None,None,3)), num_anchors//2, num_classes) \
+#                if is_tiny_version else yolo_body(Input(shape=(None,None,3)), num_anchors//3, num_classes)
+            self.yolo_model.load_weights(self.model_path) # make sure model, anchors and classes match
+        else:
+            assert self.yolo_model.layers[-1].output_shape[-1] == \
+                num_anchors/len(self.yolo_model.output) * (num_classes + 5), \
+                'Mismatch between model and given anchor and class sizes'
+
+        print('{} model, anchors, and classes loaded.'.format(model_path))
+
+        # Generate colors for drawing bounding boxes.
+        hsv_tuples = [(x / len(self.class_names), 1., 1.)
+                      for x in range(len(self.class_names))]
+        self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+        self.colors = list(
+            map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
+                self.colors))
+        np.random.seed(10101)  # Fixed seed for consistent colors across runs.
+        np.random.shuffle(self.colors)  # Shuffle colors to decorrelate adjacent classes.
+        np.random.seed(None)  # Reset seed to default.
+
+        # Generate output tensor targets for filtered bounding boxes.
+        self.input_image_shape = K.placeholder(shape=(2, ))
+        if self.gpu_num>=2:
+            self.yolo_model = multi_gpu_model(self.yolo_model, gpus=self.gpu_num)
+        boxes, scores, classes = yolo_eval(self.yolo_model.output, self.anchors,
+                len(self.class_names), self.input_image_shape,
+                score_threshold=self.score, iou_threshold=self.iou)
+        return boxes, scores, classes
     
     
     def get_prediction(self, image):
         if self.model_image_size != (None, None):
             assert self.model_image_size[0]%32 == 0, 'Multiples of 32 required'
             assert self.model_image_size[1]%32 == 0, 'Multiples of 32 required'
-            boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
+            if type(image) is list:
+                if len(image) > 1:
+                    img_size = image[0].size
+                    boxed_image = np.stack([ letterbox_image(image, tuple(reversed(self.model_image_size))) for image in image  ])
+                else:
+                    img_size = image[0].size
+                    boxed_image = letterbox_image(image[0], tuple(reversed(self.model_image_size)))
+            else:
+                img_size = image.size
+                boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
         else:
             new_image_size = (image.width - (image.width % 32),
                               image.height - (image.height % 32))
@@ -39,59 +104,60 @@ class EYOLO(YOLO):
 #        print('nn_input', image_data.shape)
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-		
+        
         out_boxes, out_scores, out_classes = self.sess.run(
             [self.boxes, self.scores, self.classes],
             feed_dict={
                 self.yolo_model.input: image_data,
-                self.input_image_shape: [image.size[1], image.size[0]],
+                self.input_image_shape: [img_size[1], img_size[0]],
                 K.learning_phase(): 0
             })
 	
-        return out_boxes, out_scores, out_classes    
+        return out_boxes, out_scores, out_classes
     
-    def detect_image(self, image):
-        start = timer()
-
-        if self.model_image_size != (None, None):
-            assert self.model_image_size[0]%32 == 0, 'Multiples of 32 required'
-            assert self.model_image_size[1]%32 == 0, 'Multiples of 32 required'
-            boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
-        else:
-            new_image_size = (image.width - (image.width % 32),
-                              image.height - (image.height % 32))
-            boxed_image = letterbox_image(image, new_image_size)
-        image_data = np.array(boxed_image, dtype='float32')
-
-#        print('nn_input', image_data.shape)
-        image_data /= 255.
-        image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-
-        out_boxes, out_scores, out_classes = self.sess.run(
-            [self.boxes, self.scores, self.classes],
-            feed_dict={
-                self.yolo_model.input: image_data,
-                self.input_image_shape: [image.size[1], image.size[0]],
-                K.learning_phase(): 0
-            })
-
-#        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
-
-        
-#        for i, c in reversed(list(enumerate(out_classes))):
-#            predicted_class = self.class_names[c]
-#            box = out_boxes[i]
-#            score = out_scores[i]
+    
+#    def detect_image(self, image):
+#        start = timer()
 #
-#            label = '{} {:.2f}'.format(predicted_class, score)
-#            
-#            image = self.print_box(image, box, label, self.colors[c])
-
-        end = timer()
-#        print(end - start)
-#        return image
-        
-        return image, out_boxes, out_scores, out_classes
+#        if self.model_image_size != (None, None):
+#            assert self.model_image_size[0]%32 == 0, 'Multiples of 32 required'
+#            assert self.model_image_size[1]%32 == 0, 'Multiples of 32 required'
+#            boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
+#        else:
+#            new_image_size = (image.width - (image.width % 32),
+#                              image.height - (image.height % 32))
+#            boxed_image = letterbox_image(image, new_image_size)
+#        image_data = np.array(boxed_image, dtype='float32')
+#
+##        print('nn_input', image_data.shape)
+#        image_data /= 255.
+#        image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
+#
+#        out_boxes, out_scores, out_classes = self.sess.run(
+#            [self.boxes, self.scores, self.classes],
+#            feed_dict={
+#                self.yolo_model.input: image_data,
+#                self.input_image_shape: [image.size[1], image.size[0]],
+#                K.learning_phase(): 0
+#            })
+#
+##        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+#
+#        
+##        for i, c in reversed(list(enumerate(out_classes))):
+##            predicted_class = self.class_names[c]
+##            box = out_boxes[i]
+##            score = out_scores[i]
+##
+##            label = '{} {:.2f}'.format(predicted_class, score)
+##            
+##            image = self.print_box(image, box, label, self.colors[c])
+#
+#        end = timer()
+##        print(end - start)
+##        return image
+#        
+#        return image, out_boxes, out_scores, out_classes
     
     def print_boxes(self, image, boxes, classes, scores=None, color=None):
         for i, c in reversed(list(enumerate(classes))):
@@ -209,8 +275,9 @@ def detect_video_folder(yolo, video_folder, wk=1):
     
     for fr in frames:
         
-        image = cv2.imread(video_folder + fr)
-        image = Image.fromarray(image)
+#        image = cv2.imread(video_folder + fr)
+#        image = Image.fromarray(image)
+        image = Image.open(video_folder + fr)
         image, boxes, scores, classes = yolo.detect_image(image)
         image = yolo.print_boxes(image, boxes, classes, scores)
         result = np.asarray(image)
@@ -254,14 +321,17 @@ def predict_annotations(model, annotations, path_base, wk):
         boxes = [ bb[:-1] for bb in boxes ]
         boxes = [ [bb[1],bb[0],bb[3],bb[2]] for bb in boxes ]
         
-        image = cv2.imread(path_base + img)
-        image = Image.fromarray(image)    
-        image = model.print_boxes(image, boxes, classes, color=(0,255,0))
+#        image = cv2.imread(path_base + img)
+#        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#        image = Image.fromarray(image)    
+        images = [ Image.open(path_base + img) for img in img.split(',') ]
+        image = model.print_boxes(images[len(images)//2], boxes, classes, color=(0,255,0))
 
-        image, boxes, scores, classes = model.detect_image(image)
+        boxes, scores, classes = model.get_prediction(images)
         image = model.print_boxes(image, boxes, classes, scores, color=(0,0,255))
     
         result = np.asarray(image)
+        result = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
     
         curr_time = timer()
         exec_time = curr_time - prev_time
@@ -279,7 +349,8 @@ def predict_annotations(model, annotations, path_base, wk):
         cv2.namedWindow("result", cv2.WINDOW_NORMAL)
         cv2.imshow("result", result)
         if cv2.waitKey(wk) & 0xFF == ord('q'):
+            cv2.destroyAllWindows()
             break
-    
+    cv2.destroyAllWindows()
     
     
