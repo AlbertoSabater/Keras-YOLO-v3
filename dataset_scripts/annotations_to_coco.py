@@ -63,7 +63,7 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
                                 'flickr_url': None,
                                 'id': img[:-4]
                     })
-    
+                            
         for bb in bboxes:
             bb = bb.split(',')
             cat = bb[-1]
@@ -96,11 +96,13 @@ if __name__ == '__main__':
     # your code
     
     for ann in ['train', 'val']:
-#        dataset_annotations_filename = './voc/annotations_voc_{}.txt'.format(ann)
-#        dataset_classes_filename = './voc/voc_classes.txt'
-        dataset_annotations_filename = './coco/annotations_coco_val.txt'
-        dataset_classes_filename = './coco/coco_classes.txt'
-        annotations_to_coco(dataset_annotations_filename, dataset_classes_filename)
+        for version in['v3_8', 'v2_27']:
+#            dataset_annotations_filename = './adl/annotations_adl_{}_v2_27.txt'.format(ann)
+            dataset_annotations_filename = './adl/annotations_adl_{}_{}_r_fd|10,20|.txt'.format(ann, version)
+            dataset_classes_filename = './adl/adl_classes.txt'
+    #        dataset_annotations_filename = './coco/annotations_coco_val.txt'
+    #        dataset_classes_filename = './coco/coco_classes.txt'
+            annotations_to_coco(dataset_annotations_filename, dataset_classes_filename)
 
 
 

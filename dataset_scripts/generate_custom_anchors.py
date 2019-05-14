@@ -39,7 +39,7 @@ class EYOLO_Kmeans(YOLO_Kmeans):
         all_boxes = self.txt2boxes()
         num_steps = 20
         best_iou, best_result = 0, None
-        for i in tqdm(range(num_steps), total=num_steps):
+        for i in tqdm(range(num_steps), total=num_steps, file=sys.stdout):
             result = self.kmeans(all_boxes, k=self.cluster_number)
             result = result[np.lexsort(result.T[0, None])]
             iou = self.avg_iou(all_boxes, result) * 100
@@ -67,11 +67,13 @@ class EYOLO_Kmeans(YOLO_Kmeans):
 if __name__ == "__main__":
 
     cluster_number = 9
-    suffix = ''
-    filename = "./voc/annotations_voc_train{}.txt".format(suffix)
+    suffix = '_v3_8_pr416'
+    filename = "./adl/annotations_adl_train{}.txt".format(suffix)
+    output_filename = './adl/anchors_adl{}.txt'.format(suffix)
     kmeans = EYOLO_Kmeans(cluster_number, filename)
     anchors = kmeans.get_best_anchors()
-    kmeans.result2txt(anchors, './voc/anchors_voc{}.txt'.format(suffix))
+    kmeans.result2txt(anchors, output_filename)
+    print(output_filename, 'generated')
 
 
 

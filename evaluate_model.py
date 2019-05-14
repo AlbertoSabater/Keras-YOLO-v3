@@ -85,8 +85,8 @@ def predict_and_store_from_annotations(model_folder, train_params, annotations_f
 					anchors_path = train_params['path_anchors'],
 					score = score,	# 0.3
 					iou = iou,	  # 0.5
-					td_len = train_params['td_len'],
-					mode = train_params['mode']
+					td_len = train_params.get('td_len', None),
+					mode = train_params.get('mode', None)
 				)
 	
 	
@@ -237,14 +237,21 @@ def get_excel_resume(model_folder, train_params, train_loss, val_loss, eval_stat
 	return result
 
 
-def get_excel_resume_full(model_folder, train_params, train_loss, val_loss, eval_stats_train, eval_stats_val, train_diff, fps, score, iou):
+def get_excel_resume_full(model_folder, train_params, train_loss, val_loss, 
+						  eval_stats_train, eval_stats_val, train_diff, fps, score, iou):
+	
+	if 'egocentric_results' in train_params['path_weights']:
+		path_weights = '/'.join(train_params['path_weights'].split('/')[4:6])
+	else:
+		path_weights = train_params['path_weights'] 
+		
 	result = '{model_folder}\t{version}\t{input_shape}\t{annotations}\t{anchors}\t{pretraining}\t{frozen_training:d}\t{mode}\t{training_time}'.format(
 				model_folder = '/'.join(model_folder.split('/')[-2:]), 
 				version = train_params.get('version', ''),
 				input_shape = train_params['input_shape'],
 				annotations = train_params['path_annotations'],
 				anchors = train_params['path_anchors'],
-				pretraining = train_params['path_weights'],
+				pretraining = path_weights,
 				frozen_training = train_params['freeze_body'],
 				mode = train_params.get('mode', ''),
 				training_time = train_diff
@@ -254,20 +261,21 @@ def get_excel_resume_full(model_folder, train_params, train_loss, val_loss, eval
 				train_loss=train_loss, val_loss=val_loss).replace('.', ',')
 
 	result += '\t{mAPtrain:.5f}\t{mAP50train:.5f}\t{R100train:.5f}'.format(
-				mAPtrain = eval_stats_train['total'][0]*100,
-				mAP50train = eval_stats_train['total'][1]*100,
-				R100train = eval_stats_train['total'][7]*100,
+				mAPtrain = eval_stats_train['total'][0]*100 if 'total' in eval_stats_train else 0,
+				mAP50train = eval_stats_train['total'][1]*100 if 'total' in eval_stats_train else 0,
+				R100train = eval_stats_train['total'][7]*100 if 'total' in eval_stats_train else 0,
 			).replace('.', ',')
 	result += '\t{mAPval:.5f}\t{mAP50val:.5f}\t{mAP75val:.5f}\t{R100val:.5f}'.format(
-				mAPval = eval_stats_val['total'][0]*100,
-				mAP50val = eval_stats_val['total'][1]*100,
-				mAP75val = eval_stats_val['total'][2]*100,
-				R100val = eval_stats_val['total'][7]*100,
+				mAPval = eval_stats_val['total'][0]*100 if 'total' in eval_stats_val else 0,
+				mAP50val = eval_stats_val['total'][1]*100 if 'total' in eval_stats_val else 0,
+				mAP75val = eval_stats_val['total'][2]*100 if 'total' in eval_stats_val else 0,
+				R100val = eval_stats_val['total'][7]*100 if 'total' in eval_stats_val else 0,
 			).replace('.', ',')
 
 	result += '\t{mAPS}\t{mAPM}\t{mAPL}'.format(
-				mAPS=eval_stats_val['total'][3]*100, 
-				mAPM=eval_stats_val['total'][4]*100, mAPL=eval_stats_val['total'][5]*100, 
+				mAPS=eval_stats_val['total'][3]*100 if 'total' in eval_stats_val else 0, 
+				mAPM=eval_stats_val['total'][4]*100 if 'total' in eval_stats_val else 0, 
+				mAPL=eval_stats_val['total'][5]*100 if 'total' in eval_stats_val else 0, 
 			).replace('.', ',')
 	
 	return result
@@ -288,10 +296,10 @@ def plot_prediction_resume(eval_stats, videos, class_names, by, annotations_file
 	
 	meds = occurrences.mean()
 	meds = meds.sort_values(ascending=False)
+	occurrences = occurrences[meds.index]
 	
 	ann = 'Train' if 'train' in annotations_file else 'Val'
 	
-	occurrences = occurrences[meds.index]
 	if plot:
 		if by == 'video':
 			keys = meds.index
@@ -356,20 +364,31 @@ def plot_category_performance(cat, class_names, eval_stats, videos):
 
 # Bar plot of mAP@50 for the selected models
 # models -> {num_model: bar_label}
-def model_comparision(models, train, path_results, dataset_name, iou=0.5):
-	results = {}
+def model_comparision(models, train, path_results, dataset_name, iou=0.5, plot_loss=True):
+	mAPs, losses = {}, {}
 	if train: 
 		score, num_annotation_file = MIN_SCORE, 0
 	else:
 		score, num_annotation_file = 0, 1
 	
 	for model_num, label in models.items():
-		model, class_names, videos, occurrences, resume, eval_stats, train_params = main(
+		model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
 				path_results, dataset_name, model_num, score, iou, num_annotation_file,
 				plot=False, full=True)
-		results[model_num] = eval_stats['total'][1]
+		mAPs[model_num] = eval_stats['total'][1]
+		losses[model_num] = loss[1]
 	
-	plt.bar(list(models.values()), list(results.values()));
+	fig, ax1 = plt.subplots()
+	ax1.bar(list(models.values()), list(mAPs.values()), alpha=0.6, color='b');
+	ax1.set_ylabel('mAP', color='b')
+	ax1.tick_params(axis='y', labelcolor='b')
+
+	if plot_loss:
+		ax2 = ax1.twinx()
+		ax2.plot(list(models.values()), list(losses.values()), color='g');
+		ax2.set_ylabel('loss', color='g')
+		ax2.tick_params(axis='y', labelcolor='g')
+	fig.tight_layout()
 
 
 def main(path_results, dataset_name, model_num, score, iou, num_annotation_file=1, plot=True, full=True):
@@ -399,7 +418,7 @@ def main(path_results, dataset_name, model_num, score, iou, num_annotation_file=
 	occurrences = plot_prediction_resume(eval_stats, videos, class_names, 'class', annotations_file, model_num, plot)
 	print(resume)
 	
-	return model, class_names, videos, occurrences, resume, eval_stats, train_params
+	return model, class_names, videos, occurrences, resume, eval_stats, train_params, (train_loss, val_loss)
 
 
 # %%
@@ -407,15 +426,21 @@ if False:
 	# %%
 	path_results = '/mnt/hdd/egocentric_results/'
 	dataset_name = 'adl'
-	model_num = 16
+	model_num = 32
 	#score = 
 	iou = 0.5
 	plot = True
 	full = True
 	
-	annotation_files = [(0, 1), (MIN_SCORE, 0)]
+#	annotation_files = [(0, 1), (MIN_SCORE, 0)]
 	#annotation_files = [(MIN_SCORE, 0)]			# Train
 #	annotation_files = [(0, 1)]					 # Val
+
+	if dataset_name == 'kitchen':
+		annotation_files = [(0.005, 1), (0.005, 0)]
+	else:
+		annotation_files = [(0, 1), (MIN_SCORE, 0)]
+	
 	times = [ None for i in range(max([ af for _,af in annotation_files ])+1) ]
 	eval_stats_arr = [ None for i in range(max([ af for _,af in annotation_files ])+1) ]
 	videos_arr = [ None for i in range(max([ af for _,af in annotation_files ])+1) ]
@@ -429,7 +454,7 @@ if False:
 		
 		times[num_annotation_file] = time.time()
 	
-		model, class_names, videos, occurrences, resume, eval_stats, train_params = main(
+		model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
 				path_results, dataset_name, model_num, score, iou, num_annotation_file,
 				plot, full)
 		
@@ -466,10 +491,12 @@ if False:
 
 	path_results = '/mnt/hdd/egocentric_results/'
 	dataset_name = 'adl'
-#	model_nums = {15: 'v1_47', 13: 'v2_27', 16: 'v3_8'}
-#	model_nums = {18: 'v3_320', 16: 'v3_416', 17: 'v3_608'}	
-	models = {31: 'no pretraining', 10: 'darknet', 18: 'yolo_coco'}
-	model_comparision(models, False, path_results, dataset_name)
+#	models = {15: 'v1_47', 13: 'v2_27', 16: 'v3_8'}
+#	models = {18: 'v3_320', 16: 'v3_416', 17: 'v3_608'}	
+	models = {30: 'no pretraining', None: 'darknet', 16: 'yolo_coco', 
+		   31: 'kitchen cv1_17', None: 'kitchen cv2_18'}
+	models = {None: 'yolo', None: 'yolo SPP'}
+	model_comparision(models, False, path_results, dataset_name, plot_loss=True)
 	
 	
 	
@@ -494,7 +521,7 @@ if False:
 			print('dataset = {}, score = {}, num_ann = {}, model = {}'.format(
 					dataset_name, score, num_annotation_file, model_num))
 			print('='*80)
-			model, occurrences, resume, eval_stats, train_params = main(path_results, dataset_name, 
+			model, occurrences, resume, eval_stats, train_params, loss = main(path_results, dataset_name, 
 								   model_num, score, iou, num_annotation_file, plot)
 	
 			if num_annotation_file == 1:
@@ -526,7 +553,7 @@ if False:
 			print('datset = {}, score = {}, iou = {}, num_ann = {}, model = {}'.format(
 					dataset_name, score, iou, num_annotation_file, model_num))
 			print('='*80)
-			model, occurrences, resume, eval_stats, train_params = main(
+			model, occurrences, resume, eval_stats, train_params, loss = main(
 							path_results, dataset_name, model_num, score, iou, 
 							num_annotation_file, plot)
 	
