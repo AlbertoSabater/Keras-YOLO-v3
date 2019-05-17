@@ -60,9 +60,9 @@ def remove_null_trainings(path_results, dataset_name):
         
     
     count = 0
-    for i, model in enumerate(os.listdir(folder_models)):
+    for i, model in enumerate(sorted(os.listdir(folder_models))):
         if int(model.split('_')[-1]) != count:
-            print('rename', model)
+            print('rename {} -> {}'.format(model, '_'.join(model.split('_')[:-1]) + '_' + str(count)))
             os.rename(folder_models + model, folder_models + '_'.join(model.split('_')[:-1]) + '_' + str(count))
         count += 1
 

@@ -6,7 +6,7 @@ Created on Mon Mar 25 12:23:38 2019
 @author: asabater
 """
 
-#import os
+import os
 #os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID";
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""  
 
@@ -15,7 +15,7 @@ sys.path.append('keras_yolo3/')
 import keras_yolo3.train as ktrain
 
 
-from yolo3.model import yolo_head, box_iou, DarknetConv2D_BN_Leaky, DarknetConv2D, resblock_body, make_last_layers
+from yolo3.model import yolo_head, box_iou, DarknetConv2D_BN_Leaky, DarknetConv2D, resblock_body
 
 import numpy as np
 import keras.backend as K
@@ -38,7 +38,7 @@ from keras.layers.convolutional_recurrent import ConvLSTM2D
 
 
 def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze_body=2,
-			weights_path='model_data/yolo_weights.h5', td_len=None, mode=None):
+			weights_path='model_data/yolo_weights.h5', td_len=None, mode=None, spp=False):
 	'''create the training model'''
 	K.clear_session() # get a new session
 	h, w = input_shape
@@ -54,7 +54,7 @@ def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze
 		model_body = r_yolo_body(image_input, num_anchors//3, num_classes, td_len, mode)
 	else:
 		image_input = Input(shape=(None, None, 3))
-		model_body = yolo_body(image_input, num_anchors//3, num_classes)
+		model_body = yolo_body(image_input, num_anchors//3, num_classes, spp)
 	print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
 	if load_pretrained and weights_path != '':
@@ -184,10 +184,10 @@ def class_loss(y_true, y_pred): return y_pred[6]
 # =============================================================================
 
 
-def yolo_body(inputs, num_anchors, num_classes):
+def yolo_body(inputs, num_anchors, num_classes, spp=False):
 	"""Create YOLO_V3 model CNN body in Keras."""
 	darknet = Model(inputs, darknet_body(inputs))
-	x, y1 = make_last_layers(darknet.output, 512, num_anchors*(num_classes+5))
+	x, y1 = make_last_layers(darknet.output, 512, num_anchors*(num_classes+5), spp)
 
 	x = compose(
 			DarknetConv2D_BN_Leaky(256, (1,1)),
@@ -204,6 +204,61 @@ def yolo_body(inputs, num_anchors, num_classes):
 	return Model(inputs, [y1,y2,y3])
 
 
+def make_last_layers(x, num_filters, out_filters, spp=False):
+    '''6 Conv2D_BN_Leaky layers followed by a Conv2D_linear layer'''
+    if spp:
+#	    x = compose(
+##	            DarknetConv2D_BN_Leaky(num_filters, (1,1)),
+##	            DarknetConv2D_BN_Leaky(num_filters*2, (3,3)),
+#	            DarknetConv2D_BN_Leaky(num_filters, (1,1)),
+#	            DarknetConv2D_BN_Leaky(num_filters*2, (3,3)),
+#	            DarknetConv2D_BN_Leaky(num_filters, (1,1)))(x)
+		
+	    x = DarknetConv2D_BN_Leaky(num_filters, (1,1), strides=(1,1))(x)
+	    x = DarknetConv2D_BN_Leaky(num_filters*2, (3,3), strides=(1,1))(x)
+	    x = DarknetConv2D_BN_Leaky(num_filters, (1,1), strides=(1,1))(x)
+	    mp5 = MaxPooling2D(pool_size=(5,5), strides=(1,1), padding='same')(x)
+	    mp9 = MaxPooling2D(pool_size=(9,9), strides=(1,1), padding='same')(x)
+	    mp13 = MaxPooling2D(pool_size=(13,13), strides=(1,1), padding='same')(x)
+	    x = Concatenate()([x, mp13, mp9, mp5])
+	    x = DarknetConv2D_BN_Leaky(num_filters, (1,1))(x)
+	    x = DarknetConv2D_BN_Leaky(num_filters*2, (3,3))(x)
+	    x = DarknetConv2D_BN_Leaky(num_filters, (1,1))(x)		
+		
+    else:
+	    x = compose(
+	            DarknetConv2D_BN_Leaky(num_filters, (1,1)),
+	            DarknetConv2D_BN_Leaky(num_filters*2, (3,3)),
+	            DarknetConv2D_BN_Leaky(num_filters, (1,1)),
+	            DarknetConv2D_BN_Leaky(num_filters*2, (3,3)),
+	            DarknetConv2D_BN_Leaky(num_filters, (1,1)))(x)
+    y = compose(
+            DarknetConv2D_BN_Leaky(num_filters*2, (3,3)),
+            DarknetConv2D(out_filters, (1,1)))(x)
+    return x, y
+
+
+def spp_block(x):
+	'''Create SPP block'''
+	
+#	x = ZeroPadding2D(((1,0),(1,0)))(x)
+	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(1024, (3,3), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+	
+	mp5 = MaxPooling2D(pool_size=(5,5), strides=(1,1), padding='same')(x)
+	mp9 = MaxPooling2D(pool_size=(9,9), strides=(1,1), padding='same')(x)
+	mp13 = MaxPooling2D(pool_size=(13,13), strides=(1,1), padding='same')(x)
+	x = Concatenate()([x, mp13, mp9, mp5])
+
+#	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+#	x = DarknetConv2D_BN_Leaky(1024, (3,3), strides=(1,1))(x)
+#	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+#	x = DarknetConv2D_BN_Leaky(1024, (3,3), strides=(1,1))(x)
+
+	return x
+	
+
 def darknet_body(x):
 	'''Darknent body having 52 Convolution2D layers'''
 #	inpt = x
@@ -219,6 +274,7 @@ def darknet_body(x):
 #	print(len(Model(inpt, x).layers))
 	x = resblock_body(x, 1024, 4)
 #	print(len(Model(inpt, x).layers))
+	
 	return x
 
 # =============================================================================
@@ -320,7 +376,7 @@ if False:
 	
 	# %%
 	
-	img_size = 320
+	img_size = 416
 	input_shape = (img_size,img_size)
 	num_anchors = 9
 	num_classes = 7
@@ -334,11 +390,86 @@ if False:
 		num_anchors//3, num_classes+5)) for l in range(3)]
 		
 		
-	darknet = Model(image_input, darknet_body(image_input))
+	darknet = Model(image_input, darknet_body(image_input, spp=False))
+	darknet_spp = Model(image_input, darknet_body(image_input, spp=True))
+	yolo = yolo_body(image_input, num_anchors//3, num_classes, spp=True)
+	
+#	body_darknet = yolo_body(image_input, num_anchors//3, num_classes)
+	
+	# %%
+	
+	print(darknet.layers[152])
+	print(darknet_spp.layers[152])
+	print(yolo.layers[152])
+	print(darknet.layers[92])
+	print(darknet_spp.layers[92])
+	print(yolo.layers[92])
+	
+	# %%
+	
+	from keras.models import model_from_json
+	from keras.utils import plot_model
+	import json
+	
+	img_size = 416
+	num_anchors = 9
+	num_classes = 7
+	image_input = Input(shape=(img_size,img_size, 3))		 # (None, None, 3)
+	yolo_spp = yolo_body(image_input, num_anchors//3, num_classes, spp=True)
+	orig_spp = model_from_json(json.load(open('weights/spp.json', 'r')))
+	plot_model(yolo_spp, to_file='yolo_spp.png', show_shapes=True)
+	plot_model(orig_spp, to_file='orig_spp.png', show_shapes=True)
+
+	
+	# %%
+	
+	for i in range(len(yolo_spp.layers)):
+		if yolo_spp.layers[i].name != orig_spp.layers[i].name:
+			print(i, yolo_spp.layers[i].name, orig_spp.layers[i].name)
+		elif 'conv' in yolo_spp.layers[i].name:
+			l1, lo = yolo_spp.layers[i], orig_spp.layers[i]
+			if not (l1.strides == lo.strides and l1.kernel_size == lo.kernel_size and 
+		   l1.input.shape[-1] == lo.input.shape[-1] and l1.filters == lo.filters):
+				print(i)
+				print(i, l1.name, '\t\t', l1.strides,l1.kernel_size, l1.filters, '\t\t', l1.input.shape.as_list())
+				print(i, lo.name, '\t\t', lo.strides,lo.kernel_size, lo.filters, '\t\t', lo.input.shape.as_list())
+		elif 'pool' in yolo_spp.layers[i].name:
+			l1, lo = yolo_spp.layers[i], orig_spp.layers[i]
+			print(i)
+			print(i, l1.name, l1.pool_size, l1.strides)
+			print(i, lo.name, lo.pool_size, lo.strides)
+		
+			
+	# %%
+	
+	for i,l in enumerate(orig_spp.layers):
+		if 'conv' in l.name:
+			print(i, l.name, '\t\t', l.strides,l.kernel_size, l.filters, '\t\t', l.input.shape.as_list())
+		elif 'add_' in l.name or 'concat' in l.name:
+			print(i, l.name, '\t\t\t\t\t\t', [ l.shape.as_list() for l in l.input ])
+		else:
+			print(i, l.name, '\t\t\t\t\t\t', l.input.shape.as_list())
 	
 	
-	body_darknet = yolo_body(image_input, num_anchors//3, num_classes)
+	# %%
 	
+	img_size = 19
+	image_input = Input(shape=(img_size,img_size, 3))		 # (None, None, 3)
+	x = ZeroPadding2D(((1,0),(1,0)))(image_input)
+	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(1024, (3,3), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+	
+	mp5 = MaxPooling2D(pool_size=(5,5), strides=(1,1), padding='same')(x)
+	mp9 = MaxPooling2D(pool_size=(9,9), strides=(1,1), padding='same')(x)
+	mp13 = MaxPooling2D(pool_size=(13,13), strides=(1,1), padding='same')(x)
+	x = Concatenate()([x, mp5, mp9, mp13])
+
+	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(1024, (3,3), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(512, (1,1), strides=(1,1))(x)
+	x = DarknetConv2D_BN_Leaky(1024, (3,3), strides=(1,1))(x)
+	x = Model(image_input, x)
 	
 	
 	#%%

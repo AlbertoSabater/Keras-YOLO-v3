@@ -7,8 +7,8 @@ Created on Tue Feb 26 15:03:59 2019
 """
 
 import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID";
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"  
+#os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID";
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1"  
 
 
 import sys
@@ -41,10 +41,12 @@ num_gpu = len([x for x in device_lib.list_local_devices() if x.device_type == 'G
 
 
 dataset_name = 'adl'
+spp = False
+
 #path_weights, freeze_body = 'base_models/yolo.h5', 2 	 	 	# COCO pretraining
-#path_weights, freeze_body = 'base_models/yolov3-spp.h5', 2 	# SPP pretraining
-#path_weights, freeze_body = 'base_models/darknet53.h5', 1 		# Darknet pretraining
-path_weights, freeze_body = '', 0 	 	 	 	 	 	 	 	# No pretraining
+#path_weights, freeze_body, spp = 'base_models/yolov3-spp.h5', 2, True 	 	# SPP pretraining
+path_weights, freeze_body = 'base_models/darknet53.h5', 1 		# Darknet pretraining
+#path_weights, freeze_body = '', 0 	 	 	 	 	 	 	 	# No pretraining
 #path_weights, freeze_body = train_utils.get_best_weights(train_utils.get_model_path(
 #		path_results, 'kitchen', 1)), 2 	 	 	 	 	 	# Kitchen pretraining
 #path_weights = 'base_models/darknet53.h5'
@@ -208,7 +210,8 @@ print('Num. GPUs:', num_gpu)
 #			weights_path = path_weights) # make sure you know what you freeze
 model = create_model(input_shape, anchors, num_classes, 
 					 freeze_body=freeze_body,
-					 weights_path=path_weights, td_len=td_len, mode=mode)
+					 weights_path=path_weights, td_len=td_len, mode=mode, 
+					 spp=spp)
 print('='*print_line)
 
 
@@ -245,7 +248,8 @@ train_params = {
 				'size_suffix': size_suffix, 
 				'version': version,
 				'td_len': td_len,
-				'mode': mode
+				'mode': mode,
+				'spp': spp
 				}
 print(train_params)
 with open(path_model + 'train_params.json', 'w') as f:

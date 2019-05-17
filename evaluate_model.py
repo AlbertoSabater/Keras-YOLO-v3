@@ -86,7 +86,8 @@ def predict_and_store_from_annotations(model_folder, train_params, annotations_f
 					score = score,	# 0.3
 					iou = iou,	  # 0.5
 					td_len = train_params.get('td_len', None),
-					mode = train_params.get('mode', None)
+					mode = train_params.get('mode', None),
+					spp = train_params.get('spp', False)
 				)
 	
 	
@@ -244,6 +245,10 @@ def get_excel_resume_full(model_folder, train_params, train_loss, val_loss,
 		path_weights = '/'.join(train_params['path_weights'].split('/')[4:6])
 	else:
 		path_weights = train_params['path_weights'] 
+	
+	mode = '{} | {}'.format(
+			'spp' if train_params.get('spp', False) else '-',
+			train_params['mode'] if train_params.get('mode', None) is not None else '-')
 		
 	result = '{model_folder}\t{version}\t{input_shape}\t{annotations}\t{anchors}\t{pretraining}\t{frozen_training:d}\t{mode}\t{training_time}'.format(
 				model_folder = '/'.join(model_folder.split('/')[-2:]), 
@@ -253,7 +258,7 @@ def get_excel_resume_full(model_folder, train_params, train_loss, val_loss,
 				anchors = train_params['path_anchors'],
 				pretraining = path_weights,
 				frozen_training = train_params['freeze_body'],
-				mode = train_params.get('mode', ''),
+				mode = mode,
 				training_time = train_diff
 			)
 	
@@ -372,23 +377,32 @@ def model_comparision(models, train, path_results, dataset_name, iou=0.5, plot_l
 		score, num_annotation_file = 0, 1
 	
 	for model_num, label in models.items():
-		model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
-				path_results, dataset_name, model_num, score, iou, num_annotation_file,
-				plot=False, full=True)
-		mAPs[model_num] = eval_stats['total'][1]
-		losses[model_num] = loss[1]
+		if model_num < 0:
+			mAPs[model_num] = 0
+			losses[model_num] = 0
+		else:
+			model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
+					path_results, dataset_name, model_num, score, iou, num_annotation_file,
+					plot=False, full=True)
+			mAPs[model_num] = eval_stats['total'][1]
+			losses[model_num] = loss[1]
 	
 	fig, ax1 = plt.subplots()
 	ax1.bar(list(models.values()), list(mAPs.values()), alpha=0.6, color='b');
-	ax1.set_ylabel('mAP', color='b')
-	ax1.tick_params(axis='y', labelcolor='b')
 
 	if plot_loss:
+		ax1.set_ylabel('mAP', color='b')
+		ax1.tick_params(axis='y', labelcolor='b')
 		ax2 = ax1.twinx()
 		ax2.plot(list(models.values()), list(losses.values()), color='g');
 		ax2.set_ylabel('loss', color='g')
 		ax2.tick_params(axis='y', labelcolor='g')
+	else:
+		ax1.set_ylabel('mAP')
+
 	fig.tight_layout()
+	
+	return fig
 
 
 def main(path_results, dataset_name, model_num, score, iou, num_annotation_file=1, plot=True, full=True):
@@ -426,7 +440,7 @@ if False:
 	# %%
 	path_results = '/mnt/hdd/egocentric_results/'
 	dataset_name = 'adl'
-	model_num = 32
+	model_num = 15
 	#score = 
 	iou = 0.5
 	plot = True
@@ -482,6 +496,15 @@ if False:
 	plot_category_performance('laptop', class_names, eval_stats_val, videos_val)
 	plot_video_performance('P_20', class_names, eval_stats_val)
 	
+	# %%
+	
+	def get_cat_map(eval_stats, classes, class_name):
+		return eval_stats['cat_{}'.format(classes.index(class_name))][1]
+	
+	score = '{:.2f}'.format(get_cat_map(eval_stats_arr[0], class_names, 'mug/cup')*100)
+	print(score)
+	pyperclip.copy(score)
+	
 	
 	# %%
 	
@@ -491,13 +514,25 @@ if False:
 
 	path_results = '/mnt/hdd/egocentric_results/'
 	dataset_name = 'adl'
-#	models = {15: 'v1_47', 13: 'v2_27', 16: 'v3_8'}
-#	models = {18: 'v3_320', 16: 'v3_416', 17: 'v3_608'}	
-	models = {30: 'no pretraining', None: 'darknet', 16: 'yolo_coco', 
-		   31: 'kitchen cv1_17', None: 'kitchen cv2_18'}
-	models = {None: 'yolo', None: 'yolo SPP'}
-	model_comparision(models, False, path_results, dataset_name, plot_loss=True)
 	
+	# Por version
+#	models, fig_name = {15: 'raw', 13: 'v2_27', 16: 'v3_8'}, 'versions_mAP' 	 
+	 	
+	# v3 Por tamaño
+#	models, fig_name = {18: '320 x 320', 16: '416 x 416', 17: '608 x 608'}, 'image_size_v3'
+	
+	# v3 por pretraining
+#	models, fig_name = {30: 'no pretraining', 34: 'darknet', 16: 'yolo_coco', 
+#		   31: 'kitchen 17', 32: 'kitchen 18'}, 'pretraining_v3'
+	
+	# v2 por pretraining
+	models, fig_name = {35: 'no pretraining', 38: 'darknet', 13: 'yolo_coco'}, 'pretraining_v2'
+	
+	# v3 Por modelo
+#	models, fig_name = {-1: 'tiny', 16: 'yolo', -2: 'yolo SPP'}, 'model_v3'
+	
+	fig = model_comparision(models, False, path_results, dataset_name, plot_loss=False)
+	plt.savefig('{}figuras_05.2019/{}.png'.format(path_results, fig_name))
 	
 	
 # %%

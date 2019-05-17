@@ -29,6 +29,8 @@ import os
 import random
 import colorsys
 
+import time
+
 
 class EYOLO(YOLO):
 	
@@ -49,7 +51,7 @@ class EYOLO(YOLO):
 			elif is_tiny_version:
 				self.yolo_model = tiny_yolo_body(Input(shape=(None,None,3)), num_anchors//2, num_classes)
 			else:
-				self.yolo_model = yolo_body(Input(shape=(None,None,3)), num_anchors//3, num_classes)
+				self.yolo_model = yolo_body(Input(shape=(None,None,3)), num_anchors//3, num_classes, self.spp)
 #			self.yolo_model = tiny_yolo_body(Input(shape=(None,None,3)), num_anchors//2, num_classes) \
 #				if is_tiny_version else yolo_body(Input(shape=(None,None,3)), num_anchors//3, num_classes)
 			self.yolo_model.load_weights(self.model_path) # make sure model, anchors and classes match
@@ -313,6 +315,7 @@ def predict_annotations(model, annotations, path_base, wk):
 	print(annotations[1])
 	
 	for l in annotations:
+		t = time.time()
 		
 		l = l.split()
 		img = l[0]
@@ -349,7 +352,7 @@ def predict_annotations(model, annotations, path_base, wk):
 		result = cv2.resize(result, (result.shape[1]//2, result.shape[0]//2))
 #		cv2.namedWindow("result", cv2.WINDOW_NORMAL)
 		cv2.imshow("result", result)
-		if cv2.waitKey(wk) & 0xFF == ord('q'):
+		if cv2.waitKey(max(wk - int(((time.time() - t) * 1000)), 1)) & 0xFF == ord('q'):
 			cv2.destroyAllWindows()
 			break
 	cv2.destroyAllWindows()
