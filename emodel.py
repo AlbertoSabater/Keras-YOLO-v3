@@ -31,6 +31,7 @@ from keras.models import Model
 from keras.regularizers import l2
 
 #from yolo3.model import preprocess_true_boxes, yolo_body, tiny_yolo_body, yolo_loss
+from yolo3.model import tiny_yolo_body
 from yolo3.utils import compose
 
 from keras.layers.wrappers import TimeDistributed, Bidirectional
@@ -43,16 +44,25 @@ def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze
 	K.clear_session() # get a new session
 	h, w = input_shape
 	num_anchors = len(anchors)
+	is_tiny_version = num_anchors==6 # default setting
 
-	y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
-		num_anchors//3, num_classes+5)) for l in range(3)]
+#	y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
+#		num_anchors//3, num_classes+5)) for l in range(3)]
 #	print([ (h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
 #		num_anchors//3, num_classes+5) for l in range(3) ])
 
-	if td_len is not None and mode is not None:
+	if is_tiny_version:
+		y_true = [Input(shape=(h//{0:32, 1:16}[l], w//{0:32, 1:16}[l], \
+						 num_anchors//2, num_classes+5)) for l in range(2)]
+		model_body = tiny_yolo_body(Input(shape=(None,None,3)), num_anchors//2, num_classes)
+	elif td_len is not None and mode is not None:
+		y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
+						 num_anchors//3, num_classes+5)) for l in range(3)]
 		image_input = Input(shape=(td_len, None, None, 3))
 		model_body = r_yolo_body(image_input, num_anchors//3, num_classes, td_len, mode)
 	else:
+		y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
+						 num_anchors//3, num_classes+5)) for l in range(3)]
 		image_input = Input(shape=(None, None, 3))
 		model_body = yolo_body(image_input, num_anchors//3, num_classes, spp)
 	print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))

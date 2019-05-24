@@ -49,7 +49,7 @@ def get_train_resume(model_folder):
 	train_losses, val_losses = [], []
 	times = []
 	for tbf in tb_files:
-		print(tbf)
+#		print(tbf)
 		try:
 			ea = event_accumulator.EventAccumulator(tbf).Reload()
 			train_losses += [ e.value for e in ea.Scalars('loss') ]
@@ -74,13 +74,18 @@ def get_train_resume(model_folder):
 
 
 def predict_and_store_from_annotations(model_folder, train_params, annotations_file, 
-									   preds_filename, score, iou):
+									   preds_filename, score, iou, best_weights=True):
 
 	if os.path.isfile(preds_filename): return None, -1
 	
+	if best_weights:
+		model_path = train_utils.get_best_weights(model_folder)
+	else:
+		model_path = model_folder + 'weights/trained_weights_final.h5'
+	
 	model = EYOLO(
 					model_image_size = tuple(train_params['input_shape']),
-					model_path = train_utils.get_best_weights(model_folder),
+					model_path = model_path,
 					classes_path = train_params['path_classes'],
 					anchors_path = train_params['path_anchors'],
 					score = score,	# 0.3
@@ -239,15 +244,21 @@ def get_excel_resume(model_folder, train_params, train_loss, val_loss, eval_stat
 
 
 def get_excel_resume_full(model_folder, train_params, train_loss, val_loss, 
-						  eval_stats_train, eval_stats_val, train_diff, fps, score, iou):
+						  eval_stats_train, eval_stats_val, train_diff, best_weights):
 	
 	if 'egocentric_results' in train_params['path_weights']:
 		path_weights = '/'.join(train_params['path_weights'].split('/')[4:6])
 	else:
 		path_weights = train_params['path_weights'] 
 	
-	mode = '{} | {}'.format(
-			'spp' if train_params.get('spp', False) else '-',
+	tiny_version = len(ktrain.get_anchors(train_params['path_anchors'])) == 6
+	if tiny_version: model = 'tiny'
+	elif train_params.get('spp', False): model = 'spp'
+	else: model = 'yolo'
+	
+	mode = '{} | {} | {}'.format(
+			'bw' if best_weights else 's2',
+			model,
 			train_params['mode'] if train_params.get('mode', None) is not None else '-')
 		
 	result = '{model_folder}\t{version}\t{input_shape}\t{annotations}\t{anchors}\t{pretraining}\t{frozen_training:d}\t{mode}\t{training_time}'.format(
@@ -369,8 +380,9 @@ def plot_category_performance(cat, class_names, eval_stats, videos):
 
 # Bar plot of mAP@50 for the selected models
 # models -> {num_model: bar_label}
-def model_comparision(models, train, path_results, dataset_name, iou=0.5, plot_loss=True):
-	mAPs, losses = {}, {}
+def model_comparision(models, train, path_results, dataset_name, iou=0.5, 
+					  plot_loss=True, table=['data','arch','prtr','inp','map50','loss']):
+	mAPs, losses, train_params = {}, {}, {}
 	if train: 
 		score, num_annotation_file = MIN_SCORE, 0
 	else:
@@ -381,31 +393,93 @@ def model_comparision(models, train, path_results, dataset_name, iou=0.5, plot_l
 			mAPs[model_num] = 0
 			losses[model_num] = 0
 		else:
-			model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
+			# model, class_names, videos, occurrences, resume, eval_stats, train_params, loss
+			_, _, _, _, _, eval_stats_t, _, loss_t = main(
 					path_results, dataset_name, model_num, score, iou, num_annotation_file,
-					plot=False, full=True)
-			mAPs[model_num] = eval_stats['total'][1]
-			losses[model_num] = loss[1]
+					plot=False, full=True, best_weights=True)
+			
+			_, _, _, _, _, eval_stats_f, tp, loss_f = main(
+					path_results, dataset_name, model_num, score, iou, num_annotation_file,
+					plot=False, full=True, best_weights=False)
+			
+			train_params[model_num] = tp
+			
+			if eval_stats_t['total'][1] >= eval_stats_f['total'][1]:
+				print('Model {} con best_weights: {:.2f}'.format(model_num, eval_stats_t['total'][1]))
+				mAPs[model_num] = eval_stats_t['total'][1]
+				losses[model_num] = loss_t[1]
+			else:
+				print('Model {} con stage_2: {:.2f}'.format(model_num, eval_stats_f['total'][1]))
+				mAPs[model_num] = eval_stats_f['total'][1]
+				losses[model_num] = loss_f[1]
+			
+	if not table:
+		fig, ax1 = plt.subplots()
+		ax1.bar(list(models.values()), list(mAPs.values()), alpha=0.6, color='b');
 	
-	fig, ax1 = plt.subplots()
-	ax1.bar(list(models.values()), list(mAPs.values()), alpha=0.6, color='b');
-
-	if plot_loss:
-		ax1.set_ylabel('mAP', color='b')
-		ax1.tick_params(axis='y', labelcolor='b')
-		ax2 = ax1.twinx()
-		ax2.plot(list(models.values()), list(losses.values()), color='g');
-		ax2.set_ylabel('loss', color='g')
-		ax2.tick_params(axis='y', labelcolor='g')
+		if plot_loss:
+			ax1.set_ylabel('mAP', color='b')
+			ax1.tick_params(axis='y', labelcolor='b')
+			ax2 = ax1.twinx()
+			ax2.plot(list(models.values()), list(losses.values()), color='g');
+			ax2.set_ylabel('loss', color='g')
+			ax2.tick_params(axis='y', labelcolor='g')
+		else:
+			ax1.set_ylabel('mAP')
+	
+		fig.tight_layout()
+		
+		return fig
+	
 	else:
-		ax1.set_ylabel('mAP')
+		['arch','inp','map50','loss']
+		table_data = []
+		if 'num' in table: table_data.append('model\_num')
+		if 'data' in table: table_data.append('dataset')
+		if 'arch' in table: table_data.append('architecture')
+		if 'prtr' in table: table_data.append('pretraining')
+		if 'inp' in table: table_data.append('input size')
+		if 'loss' in table: table_data.append('Loss')
+		if 'map50' in table: table_data.append('mAP\\textsubscript{50}')
+		table_data = ' & '.join(table_data) + ' \\\\ \hline\n'
+		
+		
+		for model_num, label in models.items():
+			if model_num < 0: 
+				row = ['{} {}'.format(model_num, label)] + ['--']*(len(table)-1)
+			else:
+				row = []
+				if 'num' in table: row.append(str(model_num))
+				if 'data' in table: 
+					if 'v2' in train_params[model_num]['version']: row.append('v2')
+					elif 'v3' in train_params[model_num]['version']: row.append('v3')
+					else: row.append('raw')
+				if 'arch' in table: 
+					tiny_version = len(ktrain.get_anchors(train_params[model_num]['path_anchors'])) == 6
+					if tiny_version: row.append('tiny')
+					elif train_params[model_num].get('spp', False): row.append('spp')
+					else: row.append('base')			
+				if 'prtr' in table:
+					if 'darknet' in train_params[model_num]['path_weights']: row.append('backbone')
+					elif train_params[model_num]['path_weights'] == '': row.append('--')
+					elif 'model_0' in train_params[model_num]['path_weights']: row.apend('kitchen 17')
+					elif 'model_1' in train_params[model_num]['path_weights']: row.apend('kitchen 18')
+					else: row.append('coco')
+				if 'inp' in table: row.append(str(train_params[model_num]['input_shape'][0]))
+				if 'loss' in table: row.append('{:.2f}'.format(losses[model_num]))
+				if 'map50' in table: row.append('{:.3f}'.format(mAPs[model_num]*100))
+			
+			table_data += ' & '.join(row) + ' \\\\ \hline\n'
+			
+#		table_data = '\\begin{table}[!htb]\n\centering\n' + \
+#						'\\begin{tabular}{|' + '{}'.format('l|'*len(table)) + '}\n' + \
+#						'\hline\n' + table_data + \
+#						'\end{tabular}\n\caption[Caption for LOF]{}\n\label{tab:}\n\end{table}'
+		return table_data
+		
 
-	fig.tight_layout()
-	
-	return fig
-
-
-def main(path_results, dataset_name, model_num, score, iou, num_annotation_file=1, plot=True, full=True):
+def main(path_results, dataset_name, model_num, score, iou, num_annotation_file=1, 
+		 plot=True, full=True, best_weights=True):
 	model_folder = train_utils.get_model_path(path_results, dataset_name, model_num)
 	train_params = json.load(open(model_folder + 'train_params.json', 'r'))
 	class_names = ktrain.get_classes(train_params['path_classes'])
@@ -416,21 +490,26 @@ def main(path_results, dataset_name, model_num, score, iou, num_annotation_file=
 #	annotations_file = annotations_file.replace('.txt', '_pr416.txt')
 		
 	print(' * Exploring:', annotations_file)
-		
-	preds_filename = '{}preds_{}_score{}_iou{}.json'.format(model_folder, annotations_file.split('/')[-1][:-4], score, iou)
-	eval_filename = '{}stats_{}_score{}_iou{}.json'.format(model_folder, annotations_file.split('/')[-1][:-4], score, iou)
-	print(preds_filename)
+	
+	if best_weights:
+		preds_filename = '{}preds_{}_score{}_iou{}.json'.format(model_folder, annotations_file.split('/')[-1][:-4], score, iou)
+		eval_filename = '{}stats_{}_score{}_iou{}.json'.format(model_folder, annotations_file.split('/')[-1][:-4], score, iou)
+	else:
+		preds_filename = '{}preds_stage2_{}_score{}_iou{}.json'.format(model_folder, annotations_file.split('/')[-1][:-4], score, iou)
+		eval_filename = '{}stats_stage2_{}_score{}_iou{}.json'.format(model_folder, annotations_file.split('/')[-1][:-4], score, iou)
+
+#	print(preds_filename)
 	print('='*80)
 	
 	train_diff, train_loss, val_loss = get_train_resume(model_folder)
-	model, fps = predict_and_store_from_annotations(model_folder, train_params, annotations_file, preds_filename, score, iou)
+	model, fps = predict_and_store_from_annotations(model_folder, train_params, annotations_file, preds_filename, score, iou, best_weights=best_weights)
 	occurrences = None
 	eval_stats, videos = get_full_evaluation(annotations_file, preds_filename, eval_filename, class_names, full)
 	
 	resume = get_excel_resume(model_folder, train_params, train_loss, val_loss, eval_stats, train_diff, fps, score, iou)
 	plot_prediction_resume(eval_stats, videos, class_names, 'video', annotations_file, model_num, plot);
 	occurrences = plot_prediction_resume(eval_stats, videos, class_names, 'class', annotations_file, model_num, plot)
-	print(resume)
+#	print(resume)
 	
 	return model, class_names, videos, occurrences, resume, eval_stats, train_params, (train_loss, val_loss)
 
@@ -440,12 +519,14 @@ if False:
 	# %%
 	path_results = '/mnt/hdd/egocentric_results/'
 	dataset_name = 'adl'
-	model_num = 15
 	#score = 
 	iou = 0.5
 	plot = True
 	full = True
+	best_weights = False
 	
+	model_num = 51
+
 #	annotation_files = [(0, 1), (MIN_SCORE, 0)]
 	#annotation_files = [(MIN_SCORE, 0)]			# Train
 #	annotation_files = [(0, 1)]					 # Val
@@ -468,27 +549,97 @@ if False:
 		
 		times[num_annotation_file] = time.time()
 	
-		model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
-				path_results, dataset_name, model_num, score, iou, num_annotation_file,
-				plot, full)
-		
-		eval_stats_arr[num_annotation_file] = eval_stats
-		videos_arr[num_annotation_file] = videos
-		
+
 		if num_annotation_file == 1:
-			pyperclip.copy(resume)
+			_, _, _, _, _, eval_stats_t, _, loss_t = main(
+					path_results, dataset_name, model_num, score, iou, num_annotation_file,
+					plot=False, full=True, best_weights=True)
+			
+			_, _, videos, _, resume, eval_stats_f, tp, loss_f = main(
+					path_results, dataset_name, model_num, score, iou, num_annotation_file,
+					plot=False, full=True, best_weights=False)
+		
+			print('Val. best_weigths mAP: {:.3f}'.format(eval_stats_t['total'][1]*100))
+			print('Val. stage_2 mAP: {:.3f}'.format(eval_stats_f['total'][1]*100))
+		
+			if eval_stats_t['total'][1] >= eval_stats_f['total'][1]:
+				eval_stats_arr[num_annotation_file] = eval_stats_t
+				best_weights = True
+			else:
+				eval_stats_arr[num_annotation_file] = eval_stats_f
+				best_weights = False
+
+			videos_arr[num_annotation_file] = videos
+			
+			if num_annotation_file == 1:
+				pyperclip.copy(resume)
+		
+		else:
+			model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
+					path_results, dataset_name, model_num, score, iou, num_annotation_file,
+					plot, full, best_weights=best_weights)	
+			
+			eval_stats_arr[num_annotation_file] = eval_stats
+			videos_arr[num_annotation_file] = videos
+			
+			if num_annotation_file == 1:
+				pyperclip.copy(resume)
 	
 		times[num_annotation_file] = (time.time() - times[num_annotation_file])/60
 	
 	eval_stats_train, eval_stats_val = eval_stats_arr
 	videos_train, videos_val = videos_arr
-	full_resume = get_excel_resume_full(resume.split('\t')[0], train_params, resume.split('\t')[7], resume.split('\t')[8], 
-								 eval_stats_train, eval_stats_val, resume.split('\t')[6], 
-								 resume.split('\t')[-1], score, iou)
+	full_resume = get_excel_resume_full(resume.split('\t')[0], train_params, 
+								 resume.split('\t')[7], resume.split('\t')[8], 
+								 eval_stats_train, eval_stats_val, resume.split('\t')[6],
+								 best_weights)
 	
 	print('='*80)
 	print(full_resume)
 	pyperclip.copy(full_resume)
+	print('='*80)
+	print('Val mAP@50: {:.3f}'.format(eval_stats_val['total'][1]*100))
+	
+	
+	
+# %%
+	
+# =============================================================================
+# 	Get results without best_weights -> with stage_2 weights
+# =============================================================================
+	
+	path_results = '/mnt/hdd/egocentric_results/'
+	dataset_name = 'adl'
+	#score = 
+	iou = 0.5
+	plot = True
+	full = True
+	best_weights = False
+	
+	for model_num in range(13, 100):
+		
+		if dataset_name == 'kitchen':
+			annotation_files = [(0.005, 1), (0.005, 0)]
+		else:
+			annotation_files = [(0, 1), (MIN_SCORE, 0)]
+		
+		for score, num_annotation_file in annotation_files:		 # ,0
+		
+			print('='*80)
+			print('dataset = {}, num_ann = {}, model = {}'.format(
+					dataset_name, num_annotation_file, model_num))	
+			print('='*80)
+			
+			try:
+				model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
+						path_results, dataset_name, model_num, score, iou, num_annotation_file,
+						plot=False, full=True, best_weights=best_weights)
+			except:
+				pass
+			
+		print('='*80)
+		print('='*80)
+		print('='*80)
 	
 	
 	#%%
@@ -501,7 +652,7 @@ if False:
 	def get_cat_map(eval_stats, classes, class_name):
 		return eval_stats['cat_{}'.format(classes.index(class_name))][1]
 	
-	score = '{:.2f}'.format(get_cat_map(eval_stats_arr[0], class_names, 'mug/cup')*100)
+	score = '{:.2f}'.format(get_cat_map(eval_stats_arr[1], class_names, 'bottle')*100)
 	print(score)
 	pyperclip.copy(score)
 	
@@ -514,25 +665,124 @@ if False:
 
 	path_results = '/mnt/hdd/egocentric_results/'
 	dataset_name = 'adl'
+	plot_loss = False
+#	table=['data','arch','prtr','inp','map50','loss']
+	table = False
 	
 	# Por version
 #	models, fig_name = {15: 'raw', 13: 'v2_27', 16: 'v3_8'}, 'versions_mAP' 	 
+	
+	# v2 Por tamaño  
+#	models, fig_name = {45: '320 x 320', 13: '416 x 416', 44: '608 x 608'}, 'image_size_v2'
 	 	
 	# v3 Por tamaño
 #	models, fig_name = {18: '320 x 320', 16: '416 x 416', 17: '608 x 608'}, 'image_size_v3'
 	
-	# v3 por pretraining
-#	models, fig_name = {30: 'no pretraining', 34: 'darknet', 16: 'yolo_coco', 
-#		   31: 'kitchen 17', 32: 'kitchen 18'}, 'pretraining_v3'
-	
 	# v2 por pretraining
-	models, fig_name = {35: 'no pretraining', 38: 'darknet', 13: 'yolo_coco'}, 'pretraining_v2'
+#	models, fig_name, plot_loss = {35: 'no pretraining', 38: 'darknet', 13: 'yolo_coco',
+#			42: 'kitchen 17', 43: 'kitchen 18'}, 'pretraining_v2', True
+
+	# v3 por pretraining
+#	models, fig_name, plot_loss = {30: 'no pretraining', 34: 'darknet', 16: 'yolo_coco', 
+#		   31: 'kitchen 17', 32: 'kitchen 18'}, 'pretraining_v3', True
 	
+	# TODO: v2 Por modelo
+#	models, fig_name = {46: 'tiny', 13: 'yolo', 47: 'yolo SPP'}, 'model_v2'
+
 	# v3 Por modelo
-#	models, fig_name = {-1: 'tiny', 16: 'yolo', -2: 'yolo SPP'}, 'model_v3'
+#	models, fig_name = {39: 'tiny', 16: 'yolo', 37: 'yolo SPP'}, 'model_v3'
+
+	# TODO: v2 SPP
+#	models, fig_name = {45: 'yolo 320', 49: 'spp 320',
+#					 13: 'yolo 416', 47: 'spp 416', 
+#					 48: 'spp 608', 44: 'yolo 608'}, 'spp_v2' 			# , 41: 'spp 416 backbone'
+
+	## TODO: v3 SPP
+#	models, fig_name = {18: 'yolo 320', -10: 'spp 320',
+#					 16: 'yolo 416', 37: 'spp 416', 
+#					 17: 'spp 608', 40: 'yolo 608'}, 'spp_v3' 			# , 41: 'spp 416 backbone'
 	
-	fig = model_comparision(models, False, path_results, dataset_name, plot_loss=False)
-	plt.savefig('{}figuras_05.2019/{}.png'.format(path_results, fig_name))
+	models, _, table = {15: 'raw', 51: 'spp',
+	  # v2 
+	  13: 'base', 35: 'no_pretraining', 38: 'darknet',
+	  45: '320', 44: '608', 49: 'spp 320', 47: 'spp 416', 48: 'spp 608',
+	  46: 'tiny',
+	  # v3
+	  16: 'base', 30: 'no_pretraining', 34: 'darknet',
+	  18: '320', 17: '608', 50: 'spp 320', 37: 'spp 416', 40: 'spp: 608',
+	  39: 'tiny'}, '', ['data','arch','prtr','inp','map50','loss']
+	
+	res = model_comparision(models, False, path_results, dataset_name, plot_loss=plot_loss, table=table)
+	if not table:
+		plt.grid()
+		plt.savefig('{}figuras_05.2019/{}.png'.format(path_results, fig_name))
+		print(fig_name + ' guardado')
+	else:
+		print(res)
+		pyperclip.copy(res)
+		
+
+	
+	# %%
+	
+# =============================================================================
+# Loss plot
+# =============================================================================
+
+	from matplotlib.lines import Line2D
+
+	path_results = '/mnt/hdd/egocentric_results/'
+	dataset_name = 'adl'
+	metrics = ['class_loss', 'confidence_loss', 'confidence_loss_noobj', 'confidence_loss_obj', 'wh_loss', 'xy_loss']
+	linestyles = ['-', '--', '-.', ':']
+	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+	init_epoch = 4
+
+	model_nums = [(38, 'darknet'), (42, 'k cv1')]
+	results = {}
+	train = False
+	
+	
+	plt.figure(figsize=(12,6))
+	for model_num, _ in model_nums:
+		model_folder = train_utils.get_model_path(path_results, dataset_name, model_num)
+		tb_files = [ model_folder + f for f in os.listdir(model_folder) if f.startswith('events.out.tfevents') ]
+	
+		metrics_train = { k:[] for k in metrics}
+		metrics_val = { k:[] for k in metrics}
+		for tbf in tb_files:
+			try:
+				ea = event_accumulator.EventAccumulator(tbf).Reload()
+				train_loss, val_loss = [], []
+				for k in metrics:
+					metrics_train[k] += [ e.value for e in ea.Scalars('{}'.format(k)) ]
+					metrics_val[k] += [ e.value for e in ea.Scalars('val_{}'.format(k)) ]
+					train_loss += [ e.value for e in ea.Scalars('loss'.format(k)) ]
+					val_loss += [ e.value for e in ea.Scalars('val_loss'.format(k)) ]
+			except: continue
+		
+		results[model_num] = {'metrics_train': metrics_train,
+								'metrics_val': metrics_val,
+								'train_loss': train_loss,
+								'val_loss': val_loss}
+		
+	
+	for (model_num,model), linestyle in zip(model_nums, linestyles):
+		
+		metrics_train, metrics_val, train_loss, val_loss = results[model_num].values()
+		num_epochs = len(train_loss)
+		for k, color in zip(metrics, colors):
+			plt_mtrs = metrics_train if train else metrics_val
+			plt.plot(range(init_epoch,len(plt_mtrs[k])), plt_mtrs[k][init_epoch:num_epochs], 
+						linestyle=linestyle, color=color)
+		plt.scatter([len(plt_mtrs[k])-10]*len(metrics), [plt_mtrs[k][-10] for k in metrics], marker='x')
+			
+		print('{:<8} | Train loss: {:.2f}, Val loss: {:.2f}'.format(model, min(train_loss), min(val_loss)))
+		
+	plt.legend(handles = [Line2D([0], [0], color='black', linewidth=3, linestyle=ls, label=model) 
+								for (_,model), ls in zip(model_nums, linestyles)] +
+							[Line2D([0], [0], marker='o', markersize=12, color=c, linewidth=3, label=metric) 
+								for metric, c in zip(metrics, colors)], bbox_to_anchor=(1, 1));
 	
 	
 # %%

@@ -40,19 +40,25 @@ print_line = 100
 num_gpu = len([x for x in device_lib.list_local_devices() if x.device_type == 'GPU'])
 
 
+path_anchors = 'base_models/yolo_anchors.txt'
 dataset_name = 'adl'
 spp = False
+mode = None					 # lstm/bilstm/3d
 
-#path_weights, freeze_body = 'base_models/yolo.h5', 2 	 	 	# COCO pretraining
+#path_weights, freeze_body, path_anchors = 'base_models/yolo_tiny.h5', \
+#									2, 'base_models/tiny_yolo_anchors.txt' 	# TinyYolo + pretraining
+path_weights, freeze_body = 'base_models/yolo.h5', 2 	 	 	 	 	 	# COCO pretraining
 #path_weights, freeze_body, spp = 'base_models/yolov3-spp.h5', 2, True 	 	# SPP pretraining
-path_weights, freeze_body = 'base_models/darknet53.h5', 1 		# Darknet pretraining
-#path_weights, freeze_body = '', 0 	 	 	 	 	 	 	 	# No pretraining
+#path_weights, freeze_body, spp = 'base_models/darknet53.h5', 1, True 	 	# SPP backbone pretraining
+#path_weights, freeze_body, spp = '', 0, True 	 	 	 	 	 	 	 	# SPP no pretraining 	
+#path_weights, freeze_body = 'base_models/darknet53.h5', 1 		 	 	 	# Darknet pretraining
+#path_weights, freeze_body = '', 0 	 	 	 	 	 	 	 	 	 	 	# No pretraining
 #path_weights, freeze_body = train_utils.get_best_weights(train_utils.get_model_path(
-#		path_results, 'kitchen', 1)), 2 	 	 	 	 	 	# Kitchen pretraining
+#		path_results, 'kitchen', 1)), 2 	 	 	 	 	 	 	 	 	# Kitchen pretraining
 #path_weights = 'base_models/darknet53.h5'
 #freeze_body = 2				 # freeze_body = 1 -> freeze feature extractor
-#								# freeze_body = 2 -> freeze all but 3 output layers
-#								# freeze_body = otro -> don't freeze
+#								 # freeze_body = 2 -> freeze all but 3 output layers
+#								 # freeze_body = otro -> don't freeze
 input_shape = (416,416)		 # multiple of 32, hw
 
 
@@ -71,7 +77,6 @@ print('='*print_line)
 
 
 
-path_anchors = 'base_models/yolo_anchors.txt'
 path_dataset = ''
 size_suffix = ''
 version = -1
@@ -83,7 +88,7 @@ if dataset_name == 'adl':
 	version = '_v2_27'		# _v2_27 , _v3_8
 	
 	size_suffix = ''		 # '_416'
-	input_shape = (416,416)
+	input_shape = [416,416]
 	
 	path_dataset = '/home/asabater/projects/ADL_dataset/'
 	path_annotations = ['./dataset_scripts/adl/annotations_adl_train{}{}.txt'.format(size_suffix, version),
@@ -197,7 +202,7 @@ print(num_train, num_val)
 print(num_train, num_val)
 
 
-# %%
+## %%
 
 # =============================================================================
 # Create model
@@ -272,12 +277,12 @@ print('|{path_model}|\t|{version}|\t|{input_shape}|\t|{annotations}|\t|{anchors}
 print('='*print_line)
 
 excel_resume = evaluate_model.get_excel_resume_full(path_model, train_params, '', '', 
-						  {}, {}, '', None, None, None)
+						  {}, {}, '', None)
 print(excel_resume)		
 pyperclip.copy(excel_resume)
 
 
-# %%
+## %%
 
 # =============================================================================
 # Define train metrics
@@ -341,7 +346,7 @@ if True:
 print('='*print_line)
 
 
-# %%
+## %%
 
 # =============================================================================
 # Unfreeze and continue training, to fine-tune.
@@ -387,12 +392,12 @@ if True:
 print('='*print_line)
 	
 	
-# %%
+## %%
 
 train_utils.remove_worst_weights(path_model)
 
 
-# %%
+## %%
 
 best_weights = train_utils.get_best_weights(path_model)
 model.load_weights(best_weights)
@@ -420,26 +425,51 @@ for score, num_annotation_file in annotation_files:		 # ,0
 	
 	times[num_annotation_file] = time.time()
 
-	model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = evaluate_model.main(
-			path_results, dataset_name, model_num, score, iou, num_annotation_file, plot=True, full=True)
-
+	_, _, _, _, _, eval_stats_f, _, loss_f = evaluate_model.main(
+			path_results, dataset_name, model_num, score, iou, num_annotation_file, 
+			plot=True, full=True, best_weights=False)
 	
-	eval_stats_arr[num_annotation_file] = eval_stats
+	_, _, _, _, resume, eval_stats_t, _, loss_t = evaluate_model.main(
+			path_results, dataset_name, model_num, score, iou, num_annotation_file, 
+			plot=True, full=True, best_weights=True)
 	
-	if num_annotation_file == 1:
-		pyperclip.copy(resume)
+	
+	if eval_stats_t['total'][1] >= eval_stats_f['total'][1]:
+		print('Model {} con best_weights'.format(model_num))
+		eval_stats_arr[num_annotation_file] = eval_stats_t
+		best_weights = True
+	else:
+		print('Model {} con stage_2'.format(model_num))
+		eval_stats_arr[num_annotation_file] = eval_stats_f
+		best_weights = False
+				
+				
+#	eval_stats_arr[num_annotation_file] = eval_stats
+	
+#	if num_annotation_file == 1:
+#		pyperclip.copy(resume)
 		
 
 	times[num_annotation_file] = (time.time() - times[num_annotation_file])/60
 
 eval_stats_train, eval_stats_val = eval_stats_arr
-full_resume = evaluate_model.get_excel_resume_full(resume.split('\t')[0], train_params, resume.split('\t')[7], resume.split('\t')[8], 
-							 eval_stats_train, eval_stats_val, resume.split('\t')[6], 
-							 resume.split('\t')[-1], score, iou)
+full_resume = evaluate_model.get_excel_resume_full(
+				model_folder = resume.split('\t')[0], 
+				train_params = train_params, 
+				train_loss = resume.split('\t')[7], 
+				val_loss = resume.split('\t')[8], 
+				eval_stats_train = eval_stats_train, 
+				eval_stats_val = eval_stats_val, 
+				train_diff = resume.split('\t')[6], 
+				best_weights = best_weights)
 
 print('='*80)
 print(full_resume)		
 pyperclip.copy(full_resume)
 
 
+#%%
 
+#for name in dir():
+#    if not name.startswith('_'):
+#        del globals()[name]
