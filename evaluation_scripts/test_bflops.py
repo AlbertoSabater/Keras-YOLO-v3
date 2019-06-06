@@ -8,7 +8,9 @@ Created on Wed May 22 16:41:19 2019
 
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
-os.environ["CUDA_VISIBLE_DEVICES"] = "";  
+os.environ["CUDA_VISIBLE_DEVICES"] = ""; 
+
+os.chdir(os.getcwd() + '/..')
 
 import tensorflow as tf
 import keras.backend as K
@@ -62,9 +64,9 @@ def get_tradeoff(model_data, num_classes):
 num_classes = 27
 models = [
 			{'arch': 'base', 'inpt': 320, 'v2': 36.771, 'v3': 48.326}, 
-			{'arch': 'base', 'inpt': 416, 'v2': 38.339, 'v3': 49.480}, 
+			{'arch': 'base', 'inpt': 416, 'v2': 38.794, 'v3': 51.145}, 
 			{'arch': 'base', 'inpt': 608, 'v2': 39.188, 'v3': 51.692},
-			{'arch': 'SPP', 'inpt': 320, 'v2': 36.417, 'v3': '--'}, 
+			{'arch': 'SPP', 'inpt': 320, 'v2': 36.417, 'v3': 48.304}, 
 			{'arch': 'SPP', 'inpt': 416, 'v2': 39.496, 'v3': 51.514}, 
 			{'arch': 'SPP', 'inpt': 608, 'v2': 38.850, 'v3': 50.705},
 #			{'arch': 'tiny-yolo', 'inpt': 320, 'v2': 0, 'v3': 0}, 
@@ -83,7 +85,7 @@ for i, model_data in enumerate(models):
 
 table_data = ''
 for model_data in models:
-	table_data += '{} & {} x {} & {:.2f} Bn & {:.2f} M & {} & {} \\\\ \hline \n'.format(
+	table_data += '{:<10} & {} x {} & {:.2f} Bn & {:.2f} M & {} & {} \\\\ \hline \n'.format(
 				model_data['arch'], model_data['inpt'], model_data['inpt'],
 				model_data['flops']/1000000000, model_data['params']/1000000, 
 				model_data['v2'], model_data['v3']
@@ -94,6 +96,7 @@ for model_data in models:
 #				'\\begin{tabular}{|l|l|l|l|l|}' + \
 #				'\hline\n' + table_data + \
 #				'\end{tabular}\n\caption[Caption for LOF]{}\n\label{tab:}\n\end{table}'
-	
+
+print(table_data)
 pyperclip.copy(table_data)
 

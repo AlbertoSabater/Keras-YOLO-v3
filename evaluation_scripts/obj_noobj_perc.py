@@ -21,7 +21,7 @@ path_annotations = ['./dataset_scripts/adl/annotations_adl_train.txt'.format(),
 						'./dataset_scripts/adl/annotations_adl_val.txt'.format()]
 
 
-with open(path_annotations[1]) as f: lines = f.readlines()
+with open(path_annotations[0]) as f: lines = f.readlines()
 
 bbx_area = []
 img_area = []
@@ -41,6 +41,11 @@ print('img:', sum(img_area))
 print('perc:', sum(bbx_area)/sum(img_area))
 print('perc:', sum(img_area)/sum(bbx_area))
 
+
+# %%
+
+bck = sum(img_area) - sum(bbx_area)
+print('bck:', bck/sum(img_area))
 
 # %%
 

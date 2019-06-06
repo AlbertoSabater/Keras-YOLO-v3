@@ -23,12 +23,19 @@ import train_utils
 import numpy as np
 import json
 
-from data_factory import data_generator_wrapper_default, data_generator_wrapper_custom
+from data_factory import data_generator_wrapper_custom
 from emodel import create_model, loss, xy_loss, wh_loss, confidence_loss, confidence_loss_obj, confidence_loss_noobj, class_loss
 
 import evaluate_model
 import time
 import pyperclip
+import datetime
+
+
+
+def log(msg):
+	with open("log.txt", "a") as log_file:
+		   log_file.write('{} | {}\n'.format(str(datetime.datetime.now()), msg))
 
 # Iniciar la stage 2 con un lr más bajo
 
@@ -44,6 +51,8 @@ path_anchors = 'base_models/yolo_anchors.txt'
 dataset_name = 'adl'
 spp = False
 mode = None					 # lstm/bilstm/3d
+multi_scale = False
+loss_percs = {}
 
 #path_weights, freeze_body, path_anchors = 'base_models/yolo_tiny.h5', \
 #									2, 'base_models/tiny_yolo_anchors.txt' 	# TinyYolo + pretraining
@@ -85,7 +94,13 @@ mode = None					 # lstm/bilstm/3d
 # Get dataset annotations, classes and anchors
 if dataset_name == 'adl':
 #	path_dataset = '/mnt/hdd/datasets/adl_dataset/ADL_frames/'
-	version = '_v2_27'		# _v2_27 , _v3_8
+	version = '_v3_8'		# _v2_27 , _v3_8
+#	loss_percs, version = {'class': 0.13, 'confidence_obj': 0.04, 
+#				'confidence_noobj': 0.08}, '_v2_27'  		# v2
+#	loss_percs, version = {'confidence_obj': 2.3}, '_v2_27'  		# v2
+#	loss_percs, version = {'xy': 5, 'wh': 5, 'confidence_noobj': 0.5}, '_v2_27'  		# v2
+#	loss_percs, version = {'xy': 5, 'wh': 5, 'confidence_obj': 2.3}, '_v2_27'  		# v2
+	loss_percs, version = {'xy': 10, 'wh': 10, 'confidence_loss_obj': 0.4}, '_v2_27'
 	
 	size_suffix = ''		 # '_416'
 	input_shape = [416,416]
@@ -191,6 +206,7 @@ else:
 title = 'Create and get model folders'; print('{} {} {}'.format('='*print_indnt, title, '='*(print_line-2 - len(title)-print_indnt)))
 # Create and get model folders
 path_model = train_utils.create_model_folder(path_results, dataset_name)
+model_num = int(path_model.split('/')[-2].split('_')[-1])
 print(path_model)
 print('='*print_line)
 
@@ -216,7 +232,7 @@ print('Num. GPUs:', num_gpu)
 model = create_model(input_shape, anchors, num_classes, 
 					 freeze_body=freeze_body,
 					 weights_path=path_weights, td_len=td_len, mode=mode, 
-					 spp=spp)
+					 spp=spp, loss_percs=loss_percs)
 print('='*print_line)
 
 
@@ -254,7 +270,9 @@ train_params = {
 				'version': version,
 				'td_len': td_len,
 				'mode': mode,
-				'spp': spp
+				'spp': spp,
+				'loss_percs': loss_percs,
+				'multi_scale': multi_scale
 				}
 print(train_params)
 with open(path_model + 'train_params.json', 'w') as f:
@@ -304,6 +322,11 @@ pyperclip.copy(excel_resume)
 #def xy_loss(y_true, y_pred): return y_pred[1]
 
 
+# %%
+
+log('NEW TRAIN {}'.format(model_num))
+log('TRAIN PARAMS: {}'.format(train_params))
+
 
 # %%
 
@@ -313,9 +336,8 @@ pyperclip.copy(excel_resume)
 # =============================================================================
 
 title = 'Train first stage'; print('{} {} {}'.format('='*print_indnt, title, '='*(print_line-2 - len(title)-print_indnt)))
-import datetime
-print(print(datetime.datetime.now()))
 if True:
+	log('STAGE 1')
 	optimizer = Adam(lr=1e-3)
 #	model.compile(optimizer = optimizer,
 #				  loss = {'yolo_loss': lambda y_true, y_pred: y_pred},		# use custom yolo_loss Lambda layer.
@@ -332,9 +354,11 @@ if True:
 
 	print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size_frozen))
 	hist_1 = model.fit_generator(
-			data_generator_wrapper_custom(lines_train, batch_size_frozen, input_shape, anchors, num_classes, random=True),
+			data_generator_wrapper_custom(lines_train, batch_size_frozen, input_shape, 
+								 anchors, num_classes, random=True, multi_scale=multi_scale),
 			steps_per_epoch = max(1, num_train//batch_size_frozen),
-			validation_data = data_generator_wrapper_custom(lines_val, batch_size_frozen, input_shape, anchors, num_classes, random=False),
+			validation_data = data_generator_wrapper_custom(lines_val, batch_size_frozen, 
+								   input_shape, anchors, num_classes, random=False, multi_scale=False),
 			validation_steps = max(1, num_val//batch_size_frozen),
 			epochs = frozen_epochs,
 			initial_epoch = 0,
@@ -355,6 +379,7 @@ print('='*print_line)
 
 title = 'Train second stage'; print('{} {} {}'.format('='*print_indnt, title, '='*(print_line-2 - len(title)-print_indnt)))
 if True:
+	log('STAGE 2')
 	for i in range(len(model.layers)):
 		model.layers[i].trainable = True
 	print('Unfreeze all of the layers.')
@@ -378,9 +403,11 @@ if True:
 
 	print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size_unfrozen))
 	hist_2 = model.fit_generator(
-		data_generator_wrapper_custom(lines_train, batch_size_unfrozen, input_shape, anchors, num_classes, random=True),
+		data_generator_wrapper_custom(lines_train, batch_size_unfrozen, input_shape, 
+								anchors, num_classes, random=True, multi_scale=multi_scale),
 		steps_per_epoch = max(1, num_train//batch_size_unfrozen),
-		validation_data = data_generator_wrapper_custom(lines_val, batch_size_unfrozen, input_shape, anchors, num_classes, random=False),
+		validation_data = data_generator_wrapper_custom(lines_val, batch_size_unfrozen, 
+								input_shape, anchors, num_classes, random=False, multi_scale=False),
 		validation_steps = max(1, num_val//batch_size_unfrozen),
 		epochs = 500,
 		initial_epoch = frozen_epochs,
@@ -405,6 +432,8 @@ model.load_weights(best_weights)
 	
 # %%
 
+log('EVALUATING')
+
 model_num = int(path_model.split('/')[-2].split('_')[-1])
 #dataset_name, path_results = 'kitchen', '/mnt/hdd/egocentric_results/'
 #evaluate_model.main(path_results, dataset_name, model_num, score, iou, num_annotation_file, plot=True, full=True)
@@ -416,6 +445,8 @@ else:
 	annotation_files = [(0, 1), (evaluate_model.MIN_SCORE, 0)]
 times = [ None for i in range(max([ af for _,af in annotation_files ])+1) ]
 eval_stats_arr = [ {} for i in range(max([ af for _,af in annotation_files ])+1) ]
+best_weights = None
+
 for score, num_annotation_file in annotation_files:		 # ,0
 
 	print('='*80)
@@ -425,23 +456,35 @@ for score, num_annotation_file in annotation_files:		 # ,0
 	
 	times[num_annotation_file] = time.time()
 
-	_, _, _, _, _, eval_stats_f, _, loss_f = evaluate_model.main(
-			path_results, dataset_name, model_num, score, iou, num_annotation_file, 
-			plot=True, full=True, best_weights=False)
-	
-	_, _, _, _, resume, eval_stats_t, _, loss_t = evaluate_model.main(
-			path_results, dataset_name, model_num, score, iou, num_annotation_file, 
-			plot=True, full=True, best_weights=True)
-	
-	
-	if eval_stats_t['total'][1] >= eval_stats_f['total'][1]:
-		print('Model {} con best_weights'.format(model_num))
-		eval_stats_arr[num_annotation_file] = eval_stats_t
-		best_weights = True
+	if best_weights is None:
+		_, _, _, _, _, eval_stats_f, _, loss_f = evaluate_model.main(
+				path_results, dataset_name, model_num, score, iou, num_annotation_file, 
+				plot=True, full=True, best_weights=False)
+		
+		_, _, _, _, resume, eval_stats_t, _, loss_t = evaluate_model.main(
+				path_results, dataset_name, model_num, score, iou, num_annotation_file, 
+				plot=True, full=True, best_weights=True)
+
+
+		if eval_stats_t['total'][1] >= eval_stats_f['total'][1]:
+			print('Model {} con best_weights: {:.2f}'.format(model_num, eval_stats_t['total'][1]*100))
+			eval_stats_arr[num_annotation_file] = eval_stats_t
+			best_weights = True
+		else:
+			print('Model {} con stage_2: {:.2f}'.format(model_num, eval_stats_f['total'][1]*100))
+			eval_stats_arr[num_annotation_file] = eval_stats_f
+			best_weights = False
 	else:
-		print('Model {} con stage_2'.format(model_num))
-		eval_stats_arr[num_annotation_file] = eval_stats_f
-		best_weights = False
+		_, _, _, _, resume, eval_stats, _, loss_t = evaluate_model.main(
+				path_results, dataset_name, model_num, score, iou, num_annotation_file, 
+				plot=True, full=True, best_weights=best_weights)
+		
+		eval_stats_arr[num_annotation_file] = eval_stats
+				
+#		if best_weights:
+#			eval_stats_arr[num_annotation_file] = eval_stats_t
+#		else:
+#			eval_stats_arr[num_annotation_file] = eval_stats_f
 				
 				
 #	eval_stats_arr[num_annotation_file] = eval_stats
@@ -467,9 +510,14 @@ print('='*80)
 print(full_resume)		
 pyperclip.copy(full_resume)
 
+log(full_resume)
+log('PIPELINE ENDED\n')
+
 
 #%%
 
-#for name in dir():
-#    if not name.startswith('_'):
-#        del globals()[name]
+if False:
+	# %%
+	for name in dir():
+	    if not name.startswith('_'):
+	        del globals()[name]

@@ -14,9 +14,12 @@ import pandas as pd
 
 
 path_dataset = '/home/asabater/projects/ADL_dataset/'
-path_annotations = ['./dataset_scripts/adl/annotations_adl_train_608_v2_27.txt',
-                    './dataset_scripts/adl/annotations_adl_val_608_v2_27.txt']
-path_classes = './dataset_scripts/adl/adl_classes_v2_27.txt'
+#path_annotations = ['./dataset_scripts/adl/annotations_adl_train_608_v2_27.txt',
+#                    './dataset_scripts/adl/annotations_adl_val_608_v2_27.txt']
+#path_classes = './dataset_scripts/adl/adl_classes_v2_27.txt'
+path_annotations = ['./dataset_scripts/adl/annotations_adl_train.txt',
+                    './dataset_scripts/adl/annotations_adl_val.txt']
+path_classes = './dataset_scripts/adl/adl_classes.txt'
 
 # Load dataset classes and anchors
 class_names = ktrain.get_classes(path_classes)
@@ -37,18 +40,21 @@ for ann in annotations:
     img = img.split('/')
     video = img[-2]
     frame = img[-1]
-
+	
+    added_cats = []
     for box in boxes:
         box = box.split(',')
         cat = int(box[-1])
         cat_name = class_names[cat]
-        
+        if cat in added_cats: continue
+
         res.append({
                     'cat': cat,
                     'cat_name': cat_name,
                     'video': video,
                     'frame': frame
                 })
+        added_cats.append(cat)
 
 res = pd.DataFrame(res)
 

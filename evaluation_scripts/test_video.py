@@ -1,6 +1,6 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
-os.environ["CUDA_VISIBLE_DEVICES"] = "0";  
+os.environ["CUDA_VISIBLE_DEVICES"] = "";  
 
 from eyolo import EYOLO, detect_video_folder, predict_annotations
 import train_utils
@@ -14,7 +14,7 @@ import json
 img_size = 416          # 320, 416, 608
 model_image_size = (img_size, img_size)
 
-model = 'coco'
+model = 'adl'
 
 if model == 'tiny':
     anchors_path = 'base_models/tiny_yolo_anchors.txt'
@@ -50,7 +50,6 @@ elif model == 'voc':
     model_num = 0
     model_folder = train_utils.get_model_path('/mnt/hdd/egocentric_results/', 'voc', model_num)
     train_params = json.load(open(model_folder + 'train_params.json', 'r'))
-    model_path = train_utils.get_best_weights(model_folder)
 #    model_path = model_folder + 'weights/trained_weights_stage_1.h5'
     classes_path = train_params['path_classes']
     anchors_path = train_params['path_anchors']
@@ -59,26 +58,42 @@ elif model == 'voc':
     
 elif model == 'adl':
 #    anchors_path = 'base_models/yolo_anchors.txt'
-    model_num = 5
+    model_num = 16
     model_folder = train_utils.get_model_path('/mnt/hdd/egocentric_results/', 'adl', model_num)
     train_params = json.load(open(model_folder + 'train_params.json', 'r'))
-#    model_path = train_utils.get_best_weights(model_folder)
-    model_path = model_folder + 'weights/trained_weights_stage_1.h5'
+#    model_path = model_folder + 'weights/trained_weights_stage_1.h5'
     classes_path = train_params['path_classes']
     anchors_path = train_params['path_anchors']
     model_image_size = train_params['input_shape']
     path_base = '/home/asabater/projects/ADL_dataset/'
     
-elif model == 'coco':
-    model_folder = train_utils.get_model_path('/mnt/hdd/egocentric_results/', 'default', 0)
-    model_path = model_folder + 'weights/ep070-loss15.91974-val_loss14.88787.h5'
-    classes_path = 'base_models/coco_classes.txt'
-    path_base = '/mnt/hdd/datasets/coco/'
-    anchors_path = 'base_models/yolo_anchors.txt'
+#elif model == 'coco':
+#    model_folder = train_utils.get_model_path('/mnt/hdd/egocentric_results/', 'default', 0)
+#    model_path = model_folder + 'weights/ep070-loss15.91974-val_loss14.88787.h5'
+#    classes_path = 'base_models/coco_classes.txt'
+#    path_base = '/mnt/hdd/datasets/coco/'
+#    anchors_path = 'base_models/yolo_anchors.txt'
+#    model_image_size = [416, 416]
+	    
+elif model == 'kitchen':
+#    version = '_v3_35'
+    model_num = 1
+    model_folder = train_utils.get_model_path('/mnt/hdd/egocentric_results/', 'kitchen', model_num)
+    train_params = json.load(open(model_folder + 'train_params.json', 'r'))
+#    classes_path = './dataset_scripts/kitchen/kitchen_classes{}.txt'.format(version)
+    classes_path = train_params['path_classes']
+    path_base = ''
+#    anchors_path = 'base_models/yolo_anchors.txt'
+    anchors_path = train_params['path_anchors']
     model_image_size = [416, 416]
     
 else:
     raise ValueError('Model not recognized')
+
+
+
+if model_path is None:
+	model_path = train_utils.get_best_weights(model_folder)
 
 
 print('Loading:', model_path)
@@ -88,10 +103,24 @@ model = EYOLO(
                 model_path = model_path,
                 anchors_path = anchors_path,
                 classes_path = classes_path,
-                score = 0.15,
-                iou = 0.45
+                score = 0.1,
+                iou = 0.5,
 #                gpu_num = 2
+                td_len = train_params['td_len'],
+                mode = train_params['mode'],
+				spp = train_params.get('spp', False)
             )
+
+
+# %%
+ 
+wk = 1000 // 4
+#annotations = './dataset_scripts/adl/annotations_adl_val_416.txt'
+annotations = train_params['path_annotations'][1]
+#annotations = './dataset_scripts/coco/annotations_coco_val.txt'
+
+#result = detect_video_folder(model, daqtaset_folder, wk=500)
+predict_annotations(model, annotations, path_base, wk)
 
 
 # %%
@@ -110,15 +139,7 @@ for i in range(1):
 print('\n', dataset_folder)
 
 
-# %%
- 
-wk = 600  
-#annotations = './dataset_scripts/adl/annotations_adl_val_416.txt'
-#annotations = train_params['path_annotations'][1]
-annotations = './dataset_scripts/coco/annotations_coco_val.txt'
 
-#result = detect_video_folder(model, daqtaset_folder, wk=500)
-predict_annotations(model, annotations, path_base, wk)
 
 
 # %%

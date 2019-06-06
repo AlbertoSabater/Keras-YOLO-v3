@@ -39,7 +39,8 @@ from keras.layers.convolutional_recurrent import ConvLSTM2D
 
 
 def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze_body=2,
-			weights_path='model_data/yolo_weights.h5', td_len=None, mode=None, spp=False):
+			weights_path='model_data/yolo_weights.h5', td_len=None, mode=None, spp=False,
+			loss_percs={}):
 	'''create the training model'''
 	K.clear_session() # get a new session
 	h, w = input_shape
@@ -52,17 +53,16 @@ def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze
 #		num_anchors//3, num_classes+5) for l in range(3) ])
 
 	if is_tiny_version:
-		y_true = [Input(shape=(h//{0:32, 1:16}[l], w//{0:32, 1:16}[l], \
-						 num_anchors//2, num_classes+5)) for l in range(2)]
+		y_true = [Input(shape=(None, None, num_anchors//2, num_classes+5)) for l in range(2)]
 		model_body = tiny_yolo_body(Input(shape=(None,None,3)), num_anchors//2, num_classes)
 	elif td_len is not None and mode is not None:
-		y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
-						 num_anchors//3, num_classes+5)) for l in range(3)]
+		y_true = [Input(shape=(None, None, num_anchors//3, num_classes+5)) for l in range(3)]
 		image_input = Input(shape=(td_len, None, None, 3))
 		model_body = r_yolo_body(image_input, num_anchors//3, num_classes, td_len, mode)
 	else:
-		y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
-						 num_anchors//3, num_classes+5)) for l in range(3)]
+#		y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
+#						 num_anchors//3, num_classes+5)) for l in range(3)]
+		y_true = [Input(shape=(None, None, num_anchors//3, num_classes+5)) for l in range(3)]
 		image_input = Input(shape=(None, None, 3))
 		model_body = yolo_body(image_input, num_anchors//3, num_classes, spp)
 	print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
@@ -82,8 +82,9 @@ def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze
 #	model_body = multi_gpu_model(model_body, gpus=2)
 	
 	model_loss = Lambda(yolo_loss, output_shape=(1,), name='yolo_loss',
-		arguments={'anchors': anchors, 'num_classes': num_classes, 'ignore_thresh': 0.5})(
-		[*model_body.output, *y_true])
+		arguments={'anchors': anchors, 'num_classes': num_classes, 
+					 'loss_percs': loss_percs, 'ignore_thresh': 0.5})(
+						 [*model_body.output, *y_true])
 	model = Model([model_body.input, *y_true], model_loss)
 
 	return model
@@ -93,7 +94,7 @@ def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze
 # =============================================================================
 
 
-def yolo_loss(args, anchors, num_classes, ignore_thresh=.5):
+def yolo_loss(args, anchors, num_classes, loss_percs={}, ignore_thresh=.5):
 	'''Return yolo_loss tensor composed by the loss and all its components
 
 	Parameters
@@ -148,7 +149,8 @@ def yolo_loss(args, anchors, num_classes, ignore_thresh=.5):
 		ignore_mask = K.expand_dims(ignore_mask, -1)
 
 		# K.binary_crossentropy is helpful to avoid exp overflow.
-		xy_loss = object_mask * box_loss_scale * K.binary_crossentropy(raw_true_xy, raw_pred[...,0:2], from_logits=True)
+#		xy_loss = object_mask * box_loss_scale * K.binary_crossentropy(raw_true_xy, raw_pred[...,0:2], from_logits=True)
+		xy_loss = object_mask * box_loss_scale * 0.5 * K.square(raw_true_xy-raw_pred[...,0:2])
 		wh_loss = object_mask * box_loss_scale * 0.5 * K.square(raw_true_wh-raw_pred[...,2:4])
 		confidence_loss_obj = object_mask * K.binary_crossentropy(object_mask, raw_pred[...,4:5], from_logits=True)
 		confidence_loss_noobj = (1-object_mask) * K.binary_crossentropy(object_mask, raw_pred[...,4:5], from_logits=True) * ignore_mask
@@ -170,7 +172,11 @@ def yolo_loss(args, anchors, num_classes, ignore_thresh=.5):
 		total_confidence_loss_noobj += confidence_loss_noobj
 		total_class_loss += class_loss
 		
-	loss += total_xy_loss + total_wh_loss + total_confidence_loss_obj + total_confidence_loss_noobj + total_class_loss
+	loss += total_xy_loss * loss_percs.get('xy',1) + \
+				total_wh_loss * loss_percs.get('wh',1) + \
+				total_confidence_loss_obj * loss_percs.get('confidence_obj',1) + \
+				total_confidence_loss_noobj * loss_percs.get('confidence_noobj',1) + \
+				total_class_loss * loss_percs.get('class',1)
 #	if print_loss:
 #		loss = tf.Print(loss, [loss, xy_loss, wh_loss, confidence_loss, class_loss, K.sum(ignore_mask)], message='loss: ')
 #	return loss

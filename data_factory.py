@@ -23,29 +23,29 @@ from yolo3.model import preprocess_true_boxes
 
 
 
-def data_generator_default(annotation_lines, batch_size, input_shape, anchors, num_classes, random):
-	'''data generator for fit_generator'''
-	n = len(annotation_lines)
-	i = 0
-	while True:
-		image_data = []
-		box_data = []
-		for b in range(batch_size):
-			if i==0:
-				np.random.shuffle(annotation_lines)
-			image, box = get_random_data(annotation_lines[i], input_shape, random=random)
-			image_data.append(image)
-			box_data.append(box)
-			i = (i+1) % n
-		image_data = np.array(image_data)
-		box_data = np.array(box_data)
-		y_true = preprocess_true_boxes(box_data, input_shape, anchors, num_classes)
-		yield [image_data, *y_true], np.zeros(batch_size)
-
-def data_generator_wrapper_default(annotation_lines, batch_size, input_shape, anchors, num_classes, random):
-	n = len(annotation_lines)
-	if n==0 or batch_size<=0: return None
-	return data_generator_default(annotation_lines, batch_size, input_shape, anchors, num_classes, random)
+#def data_generator_default(annotation_lines, batch_size, input_shape, anchors, num_classes, random):
+#	'''data generator for fit_generator'''
+#	n = len(annotation_lines)
+#	i = 0
+#	while True:
+#		image_data = []
+#		box_data = []
+#		for b in range(batch_size):
+#			if i==0:
+#				np.random.shuffle(annotation_lines)
+#			image, box = get_random_data(annotation_lines[i], input_shape, random=random)
+#			image_data.append(image)
+#			box_data.append(box)
+#			i = (i+1) % n
+#		image_data = np.array(image_data)
+#		box_data = np.array(box_data)
+#		y_true = preprocess_true_boxes(box_data, input_shape, anchors, num_classes)
+#		yield [image_data, *y_true], np.zeros(batch_size)
+#
+#def data_generator_wrapper_default(annotation_lines, batch_size, input_shape, anchors, num_classes, random):
+#	n = len(annotation_lines)
+#	if n==0 or batch_size<=0: return None
+#	return data_generator_default(annotation_lines, batch_size, input_shape, anchors, num_classes, random)
 
 
 
@@ -69,99 +69,98 @@ from tqdm import tqdm
 def rand(a=0, b=1):
 	return np.random.rand()*(b-a) + a
 
-def get_random_data_custom(annotation_line, input_shape, random=True, max_boxes=20, jitter=.3, hue=.1, sat=1.5, val=1.5, proc_img=True):
-	'''random preprocessing for real-time data augmentation'''
-	line = annotation_line.split()
-	images = [ Image.open(i) for i in line[0].split(',') ]
-#	image = Image.open(line[0])
-	iw, ih = images[0].size
-	h, w = input_shape
-	box = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
-
-	if not random:
-		# resize image
-		scale = min(w/iw, h/ih)
-		nw = int(iw*scale)
-		nh = int(ih*scale)
-		dx = (w-nw)//2
-		dy = (h-nh)//2
-		images_data = [ 0 for i in images ]
-		if proc_img:
-			images = [ img.resize((nw,nh), Image.BICUBIC) for img in images ]
-			new_images = [ Image.new('RGB', (w,h), (128,128,128)) for i in images ]
-			for i in range(len(images)): new_images[i].paste(images[i], (dx, dy))
-			images_data = [ np.array(new_image)/255. for new_image in new_images ]
-
-		# correct boxes
-		box_data = np.zeros((max_boxes,5))
-		if len(box)>0:
-			np.random.shuffle(box)
-			if len(box)>max_boxes: box = box[:max_boxes]
-			box[:, [0,2]] = box[:, [0,2]]*scale + dx
-			box[:, [1,3]] = box[:, [1,3]]*scale + dy
-			box_data[:len(box)] = box
-
-		images_data = images_data[0] if len(images_data) == 1 else np.stack(images_data)
-		return images_data, box_data
-
-	# resize image
-	new_ar = w/h * rand(1-jitter,1+jitter)/rand(1-jitter,1+jitter)
-	scale = rand(.25, 2)
-	if new_ar < 1:
-		nh = int(scale*h)
-		nw = int(nh*new_ar)
-	else:
-		nw = int(scale*w)
-		nh = int(nw/new_ar)
-	images = [ image.resize((nw,nh), Image.BICUBIC) for image in images ]
-
-	# place image
-	dx = int(rand(0, w-nw))
-	dy = int(rand(0, h-nh))
-	new_images = [ Image.new('RGB', (w,h), (128,128,128)) for i in images ]
-	for i in range(len(images)): new_images[i].paste(images[i], (dx, dy))
-	images = new_images
-
-	# flip image or not
-	flip = rand()<.5
-	if flip: 
-		for i in range(len(images)):
-			images[i] = images[i].transpose(Image.FLIP_LEFT_RIGHT)
-
-	# distort image
-	hue = rand(-hue, hue)
-	sat = rand(1, sat) if rand()<.5 else 1/rand(1, sat)
-	val = rand(1, val) if rand()<.5 else 1/rand(1, val)
-	images_data = []
-	for i in range(len(images)):
-		x = rgb_to_hsv(np.array(images[i])/255.)
-		x[..., 0] += hue
-		x[..., 0][x[..., 0]>1] -= 1
-		x[..., 0][x[..., 0]<0] += 1
-		x[..., 1] *= sat
-		x[..., 2] *= val
-		x[x>1] = 1
-		x[x<0] = 0
-		images_data.append(hsv_to_rgb(x)) # numpy array, 0 to 1
-
-	# correct boxes
-	box_data = np.zeros((max_boxes,5))
-	if len(box)>0:
-		np.random.shuffle(box)
-		box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
-		box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
-		if flip: box[:, [0,2]] = w - box[:, [2,0]]
-		box[:, 0:2][box[:, 0:2]<0] = 0
-		box[:, 2][box[:, 2]>w] = w
-		box[:, 3][box[:, 3]>h] = h
-		box_w = box[:, 2] - box[:, 0]
-		box_h = box[:, 3] - box[:, 1]
-		box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
-		if len(box)>max_boxes: box = box[:max_boxes]
-		box_data[:len(box)] = box
-
-	images_data = images_data[0] if len(images_data) == 1 else np.stack(images_data)
-	return np.stack(images_data), box_data
+#def get_random_data_custom(annotation_line, input_shape, random=True, max_boxes=20, jitter=.3, hue=.1, sat=1.5, val=1.5, proc_img=True):
+#	'''random preprocessing for real-time data augmentation'''
+#	line = annotation_line.split()
+#	images = [ Image.open(i) for i in line[0].split(',') ]
+#	iw, ih = images[0].size
+#	h, w = input_shape
+#	box = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
+#
+#	if not random:
+#		# resize image
+#		scale = min(w/iw, h/ih)
+#		nw = int(iw*scale)
+#		nh = int(ih*scale)
+#		dx = (w-nw)//2
+#		dy = (h-nh)//2
+#		images_data = [ 0 for i in images ]
+#		if proc_img:
+#			images = [ img.resize((nw,nh), Image.BICUBIC) for img in images ]
+#			new_images = [ Image.new('RGB', (w,h), (128,128,128)) for i in images ]
+#			for i in range(len(images)): new_images[i].paste(images[i], (dx, dy))
+#			images_data = [ np.array(new_image)/255. for new_image in new_images ]
+#
+#		# correct boxes
+#		box_data = np.zeros((max_boxes,5))
+#		if len(box)>0:
+#			np.random.shuffle(box)
+#			if len(box)>max_boxes: box = box[:max_boxes]
+#			box[:, [0,2]] = box[:, [0,2]]*scale + dx
+#			box[:, [1,3]] = box[:, [1,3]]*scale + dy
+#			box_data[:len(box)] = box
+#
+#		images_data = images_data[0] if len(images_data) == 1 else np.stack(images_data)
+#		return images_data, box_data
+#
+#	# resize image
+#	new_ar = w/h * rand(1-jitter,1+jitter)/rand(1-jitter,1+jitter)
+#	scale = rand(.25, 2)
+#	if new_ar < 1:
+#		nh = int(scale*h)
+#		nw = int(nh*new_ar)
+#	else:
+#		nw = int(scale*w)
+#		nh = int(nw/new_ar)
+#	images = [ image.resize((nw,nh), Image.BICUBIC) for image in images ]
+#
+#	# place image
+#	dx = int(rand(0, w-nw))
+#	dy = int(rand(0, h-nh))
+#	new_images = [ Image.new('RGB', (w,h), (128,128,128)) for i in images ]
+#	for i in range(len(images)): new_images[i].paste(images[i], (dx, dy))
+#	images = new_images
+#
+#	# flip image or not
+#	flip = rand()<.5
+#	if flip: 
+#		for i in range(len(images)):
+#			images[i] = images[i].transpose(Image.FLIP_LEFT_RIGHT)
+#
+#	# distort image
+#	hue = rand(-hue, hue)
+#	sat = rand(1, sat) if rand()<.5 else 1/rand(1, sat)
+#	val = rand(1, val) if rand()<.5 else 1/rand(1, val)
+#	images_data = []
+#	for i in range(len(images)):
+#		x = rgb_to_hsv(np.array(images[i])/255.)
+#		x[..., 0] += hue
+#		x[..., 0][x[..., 0]>1] -= 1
+#		x[..., 0][x[..., 0]<0] += 1
+#		x[..., 1] *= sat
+#		x[..., 2] *= val
+#		x[x>1] = 1
+#		x[x<0] = 0
+#		images_data.append(hsv_to_rgb(x)) # numpy array, 0 to 1
+#
+#	# correct boxes
+#	box_data = np.zeros((max_boxes,5))
+#	if len(box)>0:
+#		np.random.shuffle(box)
+#		box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
+#		box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
+#		if flip: box[:, [0,2]] = w - box[:, [2,0]]
+#		box[:, 0:2][box[:, 0:2]<0] = 0
+#		box[:, 2][box[:, 2]>w] = w
+#		box[:, 3][box[:, 3]>h] = h
+#		box_w = box[:, 2] - box[:, 0]
+#		box_h = box[:, 3] - box[:, 1]
+#		box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
+#		if len(box)>max_boxes: box = box[:max_boxes]
+#		box_data[:len(box)] = box
+#
+#	images_data = images_data[0] if len(images_data) == 1 else np.stack(images_data)
+#	return np.stack(images_data), box_data
 
 
 import cv2
@@ -169,10 +168,8 @@ import cv2
 def get_random_data_cv2(annotation_line, input_shape, random=True, max_boxes=20, jitter=.3, hue=.1, sat=1.5, val=1.5, proc_img=True):
 	'''random preprocessing for real-time data augmentation'''
 	line = annotation_line.split()
-#	print(line)
 
 	# numpy array: BGR, 0-255
-#	image = cv2.imread(line[0])
 	images = [ cv2.imread(i) for i in line[0].split(',') ]
 	# height, width, channel
 	ih, iw, _ = images[0].shape
@@ -186,7 +183,6 @@ def get_random_data_cv2(annotation_line, input_shape, random=True, max_boxes=20,
 		nh = int(ih*scale)
 		dx = (w-nw)//2
 		dy = (h-nh)//2
-#		image_data=0
 		if proc_img:
 			# resize
 			new_images, images_data = [None]*len(images), [None]*len(images)
@@ -240,20 +236,6 @@ def get_random_data_cv2(annotation_line, input_shape, random=True, max_boxes=20,
 	if h_flip:
 		images = [ image[:, ::-1] for image in images ]
 
-#	# vertical flip
-#	v_flip = rand() < 0.5
-#	if v_flip:
-#		image = image[::-1]
-
-#	# rotation augment
-#	is_rot = False
-#	if is_rot:
-#		right = rand() < 0.5
-#		if right:
-#			image = image.transpose(1, 0, 2)[:, ::-1]
-#		else:
-#			image = image.transpose(1, 0, 2)[::-1]
-
 	# distort image
 	hue = rand(-hue, hue) * 179
 	sat = rand(1, sat) if rand()<.5 else 1/rand(1, sat)
@@ -290,17 +272,6 @@ def get_random_data_cv2(annotation_line, input_shape, random=True, max_boxes=20,
 		box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
 		if h_flip:
 			box[:, [0,2]] = w - box[:, [2,0]]
-#		if v_flip:
-#			box[:, [1,3]] = h - box[:, [3,1]]
-#		if is_rot:
-#			if right:
-#				tmp = box[:, [0, 2]]
-#				box[:, [0,2]] = h - box[:, [3,1]]
-#				box[:, [1,3]] = tmp
-#			else:
-#				tmp = box[:, [2, 0]]
-#				box[:, [0,2]] = box[:, [1,3]]
-#				box[:, [1,3]] = w - tmp
 
 		box[:, 0:2][box[:, 0:2]<0] = 0
 		box[:, 2][box[:, 2]>w] = w
@@ -316,14 +287,22 @@ def get_random_data_cv2(annotation_line, input_shape, random=True, max_boxes=20,
 
 
 
-def data_generator_custom(annotation_lines, batch_size, input_shape, anchors, num_classes, random):
+def data_generator_custom(annotation_lines, batch_size, input_shape, anchors, 
+						  num_classes, random, multi_scale):
 	'''data generator for fit_generator'''
 	n = len(annotation_lines)
 	i = 0
+	valid_img_sizes = np.arange(320, 608+1, 32)
 	while True:
 		image_data = []
 		box_data = []
+		if multi_scale:
+			size = np.random.choice(valid_img_sizes)
+			input_shape = [size,size]
+			
 		for b in range(batch_size):
+
+#			print(multi_scale, i, input_shape)
 			if i==0:
 				np.random.shuffle(annotation_lines)
 #			images, box = get_random_data_cv2_v2(annotation_lines[i], input_shape, random=random)
@@ -336,12 +315,15 @@ def data_generator_custom(annotation_lines, batch_size, input_shape, anchors, nu
 		image_data = np.array(image_data)
 		box_data = np.array(box_data)
 		y_true = preprocess_true_boxes(box_data, input_shape, anchors, num_classes)
+#		print('****', image_data.shape, box_data.shape)
 		yield [image_data, *y_true], np.zeros(batch_size)
 
-def data_generator_wrapper_custom(annotation_lines, batch_size, input_shape, anchors, num_classes, random):
+def data_generator_wrapper_custom(annotation_lines, batch_size, input_shape, 
+								  anchors, num_classes, random, multi_scale=False):
 	n = len(annotation_lines)
 	if n==0 or batch_size<=0: return None
-	return data_generator_custom(annotation_lines, batch_size, input_shape, anchors, num_classes, random)
+	return data_generator_custom(annotation_lines, batch_size, input_shape, 
+							  anchors, num_classes, random, multi_scale)
 
 
 # %%

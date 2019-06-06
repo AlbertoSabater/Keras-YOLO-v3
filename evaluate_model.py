@@ -264,7 +264,7 @@ def get_excel_resume_full(model_folder, train_params, train_loss, val_loss,
 	result = '{model_folder}\t{version}\t{input_shape}\t{annotations}\t{anchors}\t{pretraining}\t{frozen_training:d}\t{mode}\t{training_time}'.format(
 				model_folder = '/'.join(model_folder.split('/')[-2:]), 
 				version = train_params.get('version', ''),
-				input_shape = train_params['input_shape'],
+				input_shape = 'multi_scale' if train_params.get('multi_scale', False) else train_params['input_shape'],
 				annotations = train_params['path_annotations'],
 				anchors = train_params['path_anchors'],
 				pretraining = path_weights,
@@ -380,9 +380,9 @@ def main_evaluation():
 	iou = 0.5
 	plot = True
 	full = True
-	best_weights = False
+#	best_weights = False
 	
-	model_num = 52
+	model_num = 60
 
 #	annotation_files = [(0, 1), (MIN_SCORE, 0)]
 	#annotation_files = [(MIN_SCORE, 0)]			# Train

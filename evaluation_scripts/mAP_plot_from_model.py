@@ -156,7 +156,8 @@ def model_comparision(models, train, path_results, dataset_name, iou=0.5,
 					elif 'model_0' in train_params[model_num]['path_weights']: row.apend('kitchen 17')
 					elif 'model_1' in train_params[model_num]['path_weights']: row.apend('kitchen 18')
 					else: row.append('coco')
-				if 'inp' in table: row.append(str(train_params[model_num]['input_shape'][0]))
+				if 'inp' in table: row.append(str(train_params[model_num]['input_shape'][0])) \
+							if not train_params[model_num].get('multi_scale', False) else row.append('multi-scale')
 				if 'loss' in table: row.append('{:.2f}'.format(losses[model_num]))
 				if 'map50' in table: row.append('{:.3f}'.format(mAPs[model_num]*100))
 			
@@ -205,25 +206,35 @@ table = False
 # v3 Por modelo
 #	models, fig_name = {39: 'tiny', 16: 'yolo', 37: 'yolo SPP'}, 'model_v3'
 
-# TODO: v2 SPP
-#	models, fig_name = {45: 'yolo 320', 49: 'spp 320',
-#					 13: 'yolo 416', 47: 'spp 416', 
-#					 48: 'spp 608', 44: 'yolo 608'}, 'spp_v2' 			# , 41: 'spp 416 backbone'
+# TODO: v2 stuffs
+#models, fig_name = {45: 'yolo 320', 49: 'spp 320',
+#				 56: 'yolo 416', 47: 'spp 416', 
+#				 48: 'spp 608', 44: 'yolo 608',
+#				 68: 'multi_scale', 66: 'spp_multi_scale'}, 'v2_stuff' 			# , 41: 'spp 416 backbone'
 
-## TODO: v3 SPP
-#	models, fig_name = {18: 'yolo 320', -10: 'spp 320',
-#					 16: 'yolo 416', 37: 'spp 416', 
-#					 17: 'spp 608', 40: 'yolo 608'}, 'spp_v3' 			# , 41: 'spp 416 backbone'
+## TODO: v3 stuffs
+#models, fig_name = {18: 'yolo 320', 50: 'spp 320',
+#				 57: 'yolo 416', 37: 'spp 416', 
+#				 17: 'spp 608', 40: 'yolo 608',
+#				 62: 'multi_scale', 69: 'spp_multi_scale'}, 'v3_stuff' 			# , 41: 'spp 416 backbone'
 
-models, _, table = {15: 'raw', 51: 'spp',
+
+#models, fig_name = {15: 'yolo_416', 51: ' spp', 
+#					64: 'multi_scale', 67: 'spp_multi_scale'}, 'v1_stuff'
+
+
+models, _, table = {
+  15: 'raw', 51: 'spp', 64: 'multi_scale', 67: 'spp + multi_scale',
   # v2 
-  13: 'base', 35: 'no_pretraining', 38: 'darknet',
+  56: 'base', 35: 'no_pretraining', 38: 'darknet',
   45: '320', 44: '608', 49: 'spp 320', 47: 'spp 416', 48: 'spp 608',
+  68: 'multi_scale', 66: 'spp + multi_scale',
   46: 'tiny',
   # v3
-  16: 'base', 30: 'no_pretraining', 34: 'darknet',
+  57: 'base', 30: 'no_pretraining', 34: 'darknet',
   18: '320', 17: '608', 50: 'spp 320', 37: 'spp 416', 40: 'spp: 608',
-  39: 'tiny'}, '', ['data','arch','prtr','inp','map50','loss']
+  62: 'multi_scale', 69: 'spp + multi_scale',
+  39: 'tiny'}, '', ['data','arch','prtr','inp','map50']
 
 res = model_comparision(models, False, path_results, dataset_name, plot_loss=plot_loss, table=table)
 if not table:
@@ -240,7 +251,9 @@ else:
 if False:
 	# %%
 	
-	model_num = 52
+	path_results = '/mnt/hdd/egocentric_results/'
+	dataset_name = 'adl'
+	model_num = 15
 	
 	model, class_names, videos, occurrences, resume, eval_stats, train_params, loss = main(
 					path_results, dataset_name, model_num, score=0, iou=0.5, num_annotation_file=1,
@@ -254,10 +267,64 @@ if False:
 	def get_cat_map(eval_stats, classes, class_name):
 		return eval_stats['cat_{}'.format(classes.index(class_name))][1]
 	
-	score = '{:.2f}'.format(get_cat_map(eval_stats, class_names, 'bottle')*100)
+	score = '{:.2f}'.format(get_cat_map(eval_stats, class_names, 'tv')*100)
 	print(score)
 	pyperclip.copy(score)
 
 
+# %%
+	
+	model_num = 67
+	paper_classes = ['tap', 'soap_liquid', 'fridge', 'microwave', 'oven/stove',
+				'bottle', 'kettle', 'mug/cup', 'washer/dryer', 'tv']
 
+	_, _, _, _, _, eval_stats_t, _, _ = main(
+					path_results, dataset_name, model_num, score=0, iou=0.5, num_annotation_file=1,
+					plot=False, full=True, best_weights=True)	
+	_, class_names, _, _, _, eval_stats_f, _, _ = main(
+					path_results, dataset_name, model_num, score=0, iou=0.5, num_annotation_file=1,
+					plot=False, full=True, best_weights=False)	
+	
+#	class_name = 'tv'
+	scores = ['{:<15} True    False'.format('')]
+	for class_name in paper_classes:
+		score = '{:<15} {:.2f}\t& {:.2f}'.format(class_name, 
+				get_cat_map(eval_stats_t, class_names, class_name)*100,
+				get_cat_map(eval_stats_f, class_names, class_name)*100)
+		scores.append(score)
+#	print(scores)
+	for score in scores: print(score)
+	pyperclip.copy(score)
+	
+	
+# %%
+	
+	paper_classes = {'tap': {'base': '40.4 $\pm$ 24.3'}, 
+					  'soap_liquid': {'base': '32.5 $\pm$ 28.8'}, 
+					  'fridge': {'base': '19.9 $\pm$ 12.6'}, 
+					  'microwave': {'base': '43.1 $\pm$ 14.1'}, 
+					  'oven/stove': {'base': '38.7 $\pm$ 22.3'}, 
+					  'bottle': {'base': '21.0 $\pm$ 27.0'}, 
+					  'kettle': {'base': '21.6 $\pm$ 24.2'}, 
+					  'mug/cup': {'base': '23.5 $\pm$ 14.8'}, 
+					  'washer/dryer': {'base': '47.6 $\pm$ 15.7'}, 
+					  'tv': {'base': '69.0 $\pm$ 21.7'}}
+	
+	models = [(15, True), (51, False), (64, False), (67, True)]
+	
+	for model_num, best_weights in models:
+		_, class_names, _, _, _, eval_stats, _, _ = main(
+					path_results, dataset_name, model_num, score=0, iou=0.5, num_annotation_file=1,
+					plot=False, full=True, best_weights=best_weights)
+		
+		for class_name in paper_classes.keys():
+			paper_classes[class_name][model_num] = get_cat_map(eval_stats, class_names, class_name)*100
 
+	text = ''
+	for class_name, res in paper_classes.items():
+		scores = [ v if type(v) == str else '{:.2f}'.format(v) for v in res.values() ]
+		text += '{:<15} & '.format(class_name) + '\t& '.join(scores) + ' \\\\ \hline\n'
+	text = text.replace('_', '\_')
+	pyperclip.copy(text)	
+
+	print(text)

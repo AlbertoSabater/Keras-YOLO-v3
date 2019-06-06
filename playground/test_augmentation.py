@@ -15,14 +15,14 @@ import train_utils
 
 
 
-path_dataset = '/home/asabater/projects/ADL_dataset/'
-annotations_file = './dataset_scripts/adl/annotations_adl_val_416.txt'
+path_dataset = ''
+annotations_file ='./dataset_scripts/kitchen/annotations_kitchen_val_v2_25.txt'
 with open(annotations_file) as f: lines_val = [ path_dataset + l for l in f.readlines() ]
 
 path_anchors = 'base_models/yolo_anchors.txt'
 anchors = ktrain.get_anchors(path_anchors)
 
-path_classes = './dataset_scripts/adl/adl_classes.txt'
+path_classes = './dataset_scripts/kitchen/kitchen_classes_v2_25.txt'
 class_names = ktrain.get_classes(path_classes)
 num_classes = len(class_names)
 

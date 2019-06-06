@@ -26,7 +26,9 @@ from matplotlib.lines import Line2D
 
 path_results = '/mnt/hdd/egocentric_results/'
 dataset_name = 'adl'
-model_num = 55
+model_num = 52
+train = True
+current = False
 
 _, _, videos, _, resume, eval_stats_f, tp, loss_f = main(
 	path_results, dataset_name, model_num=model_num, score=0, iou=0.5, num_annotation_file=1,
@@ -41,12 +43,12 @@ init_epoch = 4
 #	model_nums = [(38, 'darknet'), (42, 'k cv1')]
 model_nums = [(model_num, '')]
 results = {}
-train = True
 metric_score = {}
 #	metric_score = {'class_loss': 0.13, 'confidence_loss_obj': 0.04, 
 #				'confidence_loss_noobj': 0.12} 	 	# Model 52
 #	metric_score = {'class_loss': 1, 'confidence_loss_obj': 1, 
 #				'confidence_loss_noobj': 0.25} 	 	# Model 55
+metric_score = {'xy_loss': 10, 'wh_loss': 10, 'confidence_loss_obj': 0.4} 	 	# Model 52
 
 
 plt.figure(figsize=(12,6))
@@ -66,14 +68,30 @@ for model_num, _ in model_nums:
 				train_loss += [ e.value for e in ea.Scalars('loss'.format(k)) ]
 				val_loss += [ e.value for e in ea.Scalars('val_loss'.format(k)) ]
 		except: continue
+
+	for k in metrics:
+		metrics_train[k], metrics_val[k] = np.array(metrics_train[k]), np.array(metrics_val[k])
 	
 	results[model_num] = {'metrics_train': metrics_train,
 							'metrics_val': metrics_val,
 							'train_loss': train_loss,
-							'val_loss': val_loss}
+							'val_loss': val_loss,
+							'tp': tp}
 	
 
 for model_num, _ in model_nums:
+	
+	if current:
+		if 'class' in results[model_num]['tp']['loss_percs'].keys(): 
+			results[model_num]['metrics_train']['class_loss'] *= results[model_num]['tp']['loss_percs']['class']
+			results[model_num]['metrics_val']['class_loss'] *= results[model_num]['tp']['loss_percs']['class']
+		if 'confidence_obj' in results[model_num]['tp']['loss_percs'].keys(): 
+			results[model_num]['metrics_train']['confidence_loss_obj'] *= results[model_num]['tp']['loss_percs']['confidence_obj']
+			results[model_num]['metrics_val']['confidence_loss_obj'] *= results[model_num]['tp']['loss_percs']['confidence_obj']
+		if 'confidence_noobj' in results[model_num]['tp']['loss_percs'].keys(): 
+			results[model_num]['metrics_train']['confidence_loss_noobj'] *= results[model_num]['tp']['loss_percs']['confidence_noobj']
+			results[model_num]['metrics_val']['confidence_loss_noobj'] *= results[model_num]['tp']['loss_percs']['confidence_noobj']
+	
 	for k,v in metric_score.items():
 		print(k,v)
 		results[model_num]['metrics_train'][k] = list(np.array(results[model_num]['metrics_train'][k])*v)
@@ -82,7 +100,7 @@ for model_num, _ in model_nums:
 
 for (model_num,model), linestyle in zip(model_nums, linestyles):
 	
-	metrics_train, metrics_val, train_loss, val_loss = results[model_num].values()
+	metrics_train, metrics_val, train_loss, val_loss, tp = results[model_num].values()
 	num_epochs = len(train_loss)
 	for k, color in zip(metrics, colors):
 		plt_mtrs = metrics_train if train else metrics_val
