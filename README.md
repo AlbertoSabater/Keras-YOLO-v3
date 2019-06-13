@@ -13,6 +13,12 @@
 
 A Keras implementation of YOLOv3 (Tensorflow backend) inspired by [qqwweee/keras-yolo3](https://github.com/qqwweee/keras-yolo3).
 
+**Important.** To use this repo you must make sure that [qqwweee/keras-yolo3](https://github.com/qqwweee/keras-yolo3) project has been properly downloaded.
+```
+git clone https://github.com/AlbertoSabater/Egocentric-object-detection
+cd Egocentric-object-detection
+git submodule update --init --recursive
+```
 ---
 
 ## Download pretrained models and convert to Keras
