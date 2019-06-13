@@ -6,6 +6,7 @@
 - [x] mAP Evaluation (complete, per cateogry and per subdataset (if exists))
 - [x] Loss components (xy, wh, class, confidence_obj, confidence_noobj) weighting
 - [x] Loss components logging on TensorBoard
+- [ ] mAP TensorBoard logging metric
 - [ ] Bounding box post-processing
 - [ ] Recurrent YOLO model
 
