@@ -161,7 +161,7 @@ class EYOLO(YOLO):
 #		
 #		return image, out_boxes, out_scores, out_classes
 	
-	def print_boxes(self, image, boxes, classes, scores=None, color=None):
+	def print_boxes(self, image, boxes, classes, scores=None, color=None, label_size=0.5):
 		for i, c in reversed(list(enumerate(classes))):
 			predicted_class = self.class_names[c]
 			box = boxes[i]
@@ -173,15 +173,15 @@ class EYOLO(YOLO):
 			else:
 				label = '{} {:.2f}'.format(predicted_class, scores[i])
 			
-			image = self.print_box(image, box, label, color_c)		
+			image = self.print_box(image, box, label, color_c, label_size)		
 			
 		return image
 	
 	
-	def print_box(self, image, box, label, color):
+	def print_box(self, image, box, label, color, label_size=0.5):
 		
 		font = ImageFont.truetype(font='keras_yolo3/font/FiraMono-Medium.otf',
-					size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+					size=np.floor(3e-2 * image.size[1] + label_size).astype('int32'))
 		
 		draw = ImageDraw.Draw(image)
 		label_size = draw.textsize(label, font)

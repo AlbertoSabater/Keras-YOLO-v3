@@ -1,31 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import json
-import random
+import argparse
 
 
-# %%
-
-#a = json.load(open('/home/asabater/projects/annotations/instances_val2017.json', 'r'))
-
-
-# %%
-
-#dataset_annotations_filename = './adl/annotations_adl_val_416_v2_27.txt'
-
-#dataset_classes_filename = './adl/adl_classes_v2_27.txt'
-#with open(dataset_classes_filename, 'r') as f: dataset_classes = f.read().splitlines()
-
-
-# %%
+# python ./dataset_scripts/annotations_to_coco.py path_dataset path_classes
 
 def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
     
     with open(dataset_annotations_filename, 'r') as f: dataset_annotations = f.read().splitlines()
     with open(dataset_classes_filename, 'r') as f: dataset_classes = f.read().splitlines()
-
 
     annotations_coco = {
                         'info': {
@@ -37,7 +22,6 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
                         'licenses': []
             }
 
-
     # Add categories
     for i, c in enumerate(dataset_classes):
         annotations_coco['categories'].append({
@@ -45,7 +29,6 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
                                         'id': i,
                                         'name': c
                                     })
-
 
     # Add images and annotations
     count = 0
@@ -75,7 +58,6 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
                             'area': width * height,
                             'iscrowd': 0,
                             'image_id': img[:-4],
-    #                        'bbox': [ int(b) for b in bb ],
                             'bbox': [ x_min, y_min, width, height ],
                             'category_id': int(cat),
                             'id': count
@@ -89,20 +71,17 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
 
 
 
-
+def main():
+	parser = argparse.ArgumentParser()
+	parser.add_argument("path_annotations", help="path to the annotations file to convert")
+	parser.add_argument("path_classes", help="path to the dataset classes filename")
+	args = parser.parse_args()
+	annotations_to_coco(args.path_annotations, args.path_classes)
 
 
 if __name__ == '__main__':
-    # your code
+	main()
     
-    for ann in ['train', 'val']:
-        for version in['v3_8', 'v2_27']:
-#            dataset_annotations_filename = './adl/annotations_adl_{}_v2_27.txt'.format(ann)
-            dataset_annotations_filename = './adl/annotations_adl_{}_{}_r_fd|10,20|.txt'.format(ann, version)
-            dataset_classes_filename = './adl/adl_classes.txt'
-    #        dataset_annotations_filename = './coco/annotations_coco_val.txt'
-    #        dataset_classes_filename = './coco/coco_classes.txt'
-            annotations_to_coco(dataset_annotations_filename, dataset_classes_filename)
 
 
 

@@ -115,3 +115,11 @@ dataset_scripts/**/*.json
 
 # skip all pickle files
 *.pckl
+
+# images and videos
+*.png
+*.mp4
+*.jpeg
+
+# log file
+log.txt
