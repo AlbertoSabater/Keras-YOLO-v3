@@ -6,6 +6,7 @@
 - [x] mAP Evaluation (complete, per cateogry and per subdataset (if exists))
 - [x] Loss components (xy, wh, class, confidence_obj, confidence_noobj) weighting
 - [x] Loss components logging on TensorBoard
+- [ ] mAP TensorBoard logging metric
 - [ ] Bounding box post-processing
 - [ ] Recurrent YOLO model
 
@@ -13,6 +14,12 @@
 
 A Keras implementation of YOLOv3 (Tensorflow backend) inspired by [qqwweee/keras-yolo3](https://github.com/qqwweee/keras-yolo3).
 
+**Important.** To use this repo you must make sure that [qqwweee/keras-yolo3](https://github.com/qqwweee/keras-yolo3) project has been properly downloaded.
+```
+git clone https://github.com/AlbertoSabater/Egocentric-object-detection
+cd Egocentric-object-detection
+git submodule update --init --recursive
+```
 ---
 
 ## Download pretrained models and convert to Keras
