@@ -39,7 +39,14 @@ def log(msg):
 
 
 def get_train_params_from_args():
-	parser = argparse.ArgumentParser()
+	
+	description = '''
+		Script to train a YOLO v3 model. Note that the classes especified in path_classes
+		must be the same used in path_annotations_train and path_annotations_val.\n
+		If using --spp make sure to load the weights that share the same NN architecture.
+	'''
+	
+	parser = argparse.ArgumentParser(description=description)
 	parser.add_argument("path_results", help="path where the store the training results")
 	parser.add_argument("dataset_name", help="subfolder where to store the training results")
 	parser.add_argument("--path_dataset", help="path to each training image if not specified in annotations file", default='', type=str)
@@ -50,10 +57,10 @@ def get_train_params_from_args():
 	
 	parser.add_argument("path_weights", help="path to pretrained weights")
 	parser.add_argument("freeze_body", help="0 to not freezing\n1 to freeze backbone\n2 to freeze all the model")
-	parser.add_argument("--frozen_epochs", help="number of frozen training epochs", type=int, default=15)
-	parser.add_argument("--input_shape", help="training/validation input image shape. Must be a multiple of 32", type=int, default=416)
-	parser.add_argument("--spp", help="use Spatial Pyramid Pooling", action='store_true')
-	parser.add_argument("--multi_scale", help="use multi-scale training", action='store_true')
+	parser.add_argument("--frozen_epochs", help="number of frozen training epochs. Default 15", type=int, default=15)
+	parser.add_argument("--input_shape", help="training/validation input image shape. Must be a multiple of 32. Default 416", type=int, default=416)
+	parser.add_argument("--spp", help="to use Spatial Pyramid Pooling", action='store_true')
+	parser.add_argument("--multi_scale", help="to use multi-scale training", action='store_true')
 	
 	args = parser.parse_args()
 
