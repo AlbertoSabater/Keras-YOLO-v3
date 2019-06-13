@@ -1,6 +1,7 @@
 # Keras YOLO v3
 
 - [x] Spatial Pyramid Pooling (SPP)
+- [x] Multi-scale training
 - [x] OpenCv data augmentation (increases learning speed)
 - [x] mAP Evaluation (complete, per cateogry and per subdataset (if exists))
 - [x] Loss components (xy, wh, class, confidence_obj, confidence_noobj) weighting
