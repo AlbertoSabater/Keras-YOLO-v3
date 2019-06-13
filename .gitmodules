@@ -1,3 +1,3 @@
-[submodule "keras_yolo"]
-	path = keras_yolo
+[submodule "keras_yolo3"]
+	path = keras_yolo3
 	url = https://github.com/qqwweee/keras-yolo3
