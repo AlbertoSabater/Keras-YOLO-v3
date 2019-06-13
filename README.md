@@ -1,5 +1,7 @@
 # Keras YOLO v3
 
+[Under development]
+
 - [x] Spatial Pyramid Pooling (SPP)
 - [x] Multi-scale training
 - [x] OpenCv data augmentation (increases learning speed)
@@ -7,7 +9,7 @@
 - [x] Loss components (xy, wh, class, confidence_obj, confidence_noobj) weighting
 - [x] Loss components logging on TensorBoard
 - [ ] mAP TensorBoard logging metric
-- [ ] Bounding box post-processing
+- [ ] Bounding box post-processing for video predictions
 - [ ] Recurrent YOLO model
 
 ## Introduction
