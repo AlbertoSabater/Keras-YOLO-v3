@@ -118,48 +118,11 @@ class EYOLO(YOLO):
 		return out_boxes, out_scores, out_classes
 	
 	
-#	def detect_image(self, image):
-#		start = timer()
-#
-#		if self.model_image_size != (None, None):
-#			assert self.model_image_size[0]%32 == 0, 'Multiples of 32 required'
-#			assert self.model_image_size[1]%32 == 0, 'Multiples of 32 required'
-#			boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
-#		else:
-#			new_image_size = (image.width - (image.width % 32),
-#							  image.height - (image.height % 32))
-#			boxed_image = letterbox_image(image, new_image_size)
-#		image_data = np.array(boxed_image, dtype='float32')
-#
-##		print('nn_input', image_data.shape)
-#		image_data /= 255.
-#		image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-#
-#		out_boxes, out_scores, out_classes = self.sess.run(
-#			[self.boxes, self.scores, self.classes],
-#			feed_dict={
-#				self.yolo_model.input: image_data,
-#				self.input_image_shape: [image.size[1], image.size[0]],
-#				K.learning_phase(): 0
-#			})
-#
-##		print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
-#
-#		
-##		for i, c in reversed(list(enumerate(out_classes))):
-##			predicted_class = self.class_names[c]
-##			box = out_boxes[i]
-##			score = out_scores[i]
-##
-##			label = '{} {:.2f}'.format(predicted_class, score)
-##			
-##			image = self.print_box(image, box, label, self.colors[c])
-#
-#		end = timer()
-##		print(end - start)
-##		return image
-#		
-#		return image, out_boxes, out_scores, out_classes
+	def detect_image(self, image):
+		boxes, scores, classes = self.get_prediction(image)
+		image = self.print_boxes(image, boxes, classes, scores, color=(0,0,255))
+		return image
+	
 	
 	def print_boxes(self, image, boxes, classes, scores=None, color=None, label_size=0.5):
 		for i, c in reversed(list(enumerate(classes))):

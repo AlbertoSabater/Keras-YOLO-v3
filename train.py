@@ -49,14 +49,14 @@ def get_train_params_from_args():
 	parser = argparse.ArgumentParser(description=description)
 	parser.add_argument("path_results", help="path where the store the training results")
 	parser.add_argument("dataset_name", help="subfolder where to store the training results")
-	parser.add_argument("--path_dataset", help="path to each training image if not specified in annotations file", default='', type=str)
 	parser.add_argument("path_classes", help="dataset classes file")
 	parser.add_argument("path_anchors", help="anchors file")
 	parser.add_argument("path_annotations_train", help="train annotations file")
 	parser.add_argument("path_annotations_val", help="validation annotations file")
-	
 	parser.add_argument("path_weights", help="path to pretrained weights")
 	parser.add_argument("freeze_body", help="0 to not freezing\n1 to freeze backbone\n2 to freeze all the model")
+
+	parser.add_argument("--path_dataset", help="path to each training image if not specified in annotations file", default='', type=str)
 	parser.add_argument("--frozen_epochs", help="number of frozen training epochs. Default 15", type=int, default=15)
 	parser.add_argument("--input_shape", help="training/validation input image shape. Must be a multiple of 32. Default 416", type=int, default=416)
 	parser.add_argument("--spp", help="to use Spatial Pyramid Pooling", action='store_true')
@@ -80,6 +80,7 @@ def get_train_params_from_args():
 			'size_suffix': '', 'version': '',
 			'mode': None,
 			'loss_percs': {}, 		# Use this parameter to weight loss components
+									# keys: [xy, wh, confidence_obj, confidence_noobj, class]
 			}
 	
 	return train_params
@@ -257,7 +258,7 @@ def train_final_stage(model, callbacks, lines_train, lines_val, anchors, num_cla
 # Evaluate trained model
 # If best_weights is True, evaluates with the model weights that get the lower mAP
 # If best_weights is False, evaluates with the last stored model weights
-# If best_weights is Nonw, evaluates with the kind of weights that get the highest mAP
+# If best_weights is None, evaluates with the kind of weights that get the highest mAP
 # The reference metric is mAP@50
 # score_train and score_val specify the minimum score to filter out predictions before evaluation
 # 	increase this value for large datasets

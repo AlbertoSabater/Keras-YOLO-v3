@@ -41,8 +41,7 @@ import time
 MIN_SCORE = 0.00005
 
 
-# TODO: sacar métricas con diferentes IoU thresholds
-
+# Returns training time, best train loss and val loss
 def get_train_resume(model_folder):
 	tb_files = [ model_folder + f for f in os.listdir(model_folder) if f.startswith('events.out.tfevents') ]
 	
@@ -57,8 +56,6 @@ def get_train_resume(model_folder):
 			times += [ e.wall_time for e in ea.Scalars('val_loss') ]
 		except: continue
 	
-	
-#	num_epochs = len(train_losses)
 	val_loss = min(val_losses)
 	train_loss = train_losses[val_losses.index(val_loss) ]
 	
@@ -73,6 +70,8 @@ def get_train_resume(model_folder):
 	return train_diff, train_loss, val_loss
 
 
+# Stores an json file with the predictions calculated by the given annotations_file
+# Uses best weights or last calculated weights depending on best_weights
 def predict_and_store_from_annotations(model_folder, train_params, annotations_file, 
 									   preds_filename, score, iou, best_weights=True):
 
@@ -132,6 +131,8 @@ def predict_and_store_from_annotations(model_folder, train_params, annotations_f
 	return model, fps
 
 
+# Perform mAP evaluation given the preddictions file and the groundtruth filename
+# Evaluation is performed to all the datset, pero class and per subdataset (if exists)
 def get_full_evaluation(annotations_file, preds_filename, eval_filename, class_names, full):
 	
 	eval_filename_full = eval_filename.replace('.json', '_full.json')
@@ -382,11 +383,7 @@ def main_evaluation():
 	full = True
 #	best_weights = False
 	
-	model_num = 60
-
-#	annotation_files = [(0, 1), (MIN_SCORE, 0)]
-	#annotation_files = [(MIN_SCORE, 0)]			# Train
-#	annotation_files = [(0, 1)]					 # Val
+	model_num = 76
 
 	if dataset_name == 'kitchen':
 		annotation_files = [(0.005, 1), (0.005, 0)]

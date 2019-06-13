@@ -10,7 +10,7 @@ import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID";
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"  
 
-import train_new
+import train
 import time
 
 
@@ -34,11 +34,11 @@ train_params = {
 			'freeze_body': 2,
 			'multi_scale': True,
 			'frozen_epochs': 15,
-			'loss_percs': {'xy': 5, 'wh': 5, 'confidence_noobj': 0.5},
+			'loss_percs': {'xy': 0.5, 'wh': 0.0625, 'confidence_noobj': 4, 'confidence_obj': 4, 'class': 0.0625},
 			}
 
 
-train_new.main(train_params)
+train.main(train_params)
 
 print('='*70)
 print('='*70)
