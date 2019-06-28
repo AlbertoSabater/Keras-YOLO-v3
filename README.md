@@ -8,6 +8,7 @@
 - [x] mAP Evaluation (complete, per cateogry and per subdataset (if exists))
 - [x] Loss components (xy, wh, class, confidence_obj, confidence_noobj) weighting
 - [x] Loss components logging on TensorBoard
+- [x] Custom anchors generation
 - [ ] mAP TensorBoard logging metric
 - [ ] Bounding box post-processing for video predictions
 - [ ] Recurrent YOLO model
@@ -161,6 +162,32 @@ And the end of training mAP evaluation is performed with the best weighs learned
 To train a tiny YOLO model, use `base_models/tiny_yolo_anchors.txt` as anchors.
 
 
+### Custom anchors generation
+
+To generate custom anchors, use the `./dataset_scripts/generate_custom_anchors.py`:
+```
+usage: generate_custom_anchors.py [-h] [--path_dataset PATH_DATASET]
+                                  [--num_clusters NUM_CLUSTERS]
+                                  [--output_shape OUTPUT_SHAPE]
+                                  path_annotations store_path
+
+Script to calculate custom anchors from an annotations file
+
+positional arguments:
+  path_annotations      annotations file
+  store_path            anchors output filename
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --path_dataset PATH_DATASET
+                        path to each training image if not specified in
+                        annotations file
+  --num_clusters NUM_CLUSTERS
+                        number of clusters to obtain
+  --output_shape OUTPUT_SHAPE
+                        size of the final image input shape
+```
+
 ## Evaluation
 
 mAP is calculated for all the training and test dataset, for each class and for each subdataset (if exists). The reference metric is mAP@50. As a result a json file is stored in model results folder with all the stats.
@@ -176,3 +203,4 @@ If `best_weights is None`, training evaluation is performed with the kind of wei
 * Python 3..6.8
 * Keras 2.2.4
 * tensorflow-gpu 1.13.1
+* pycocotools 2.0
