@@ -155,7 +155,6 @@ def data_generator_custom(annotation_lines, batch_size, input_shape, anchors,
 			
 		for b in range(batch_size):
 
-#			print(multi_scale, i, input_shape)
 			if i==0:
 				np.random.shuffle(annotation_lines)
 			images, box = get_random_data_cv2(annotation_lines[i], input_shape, random=random)

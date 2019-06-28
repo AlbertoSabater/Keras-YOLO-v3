@@ -44,7 +44,7 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
                                 'width': None,
                                 'date_captured': None,
                                 'flickr_url': None,
-                                'id': img[:-4]
+                                'id': '.'.join(img.split('.')[:-1])
                     })
                             
         for bb in bboxes:
@@ -57,7 +57,7 @@ def annotations_to_coco(dataset_annotations_filename, dataset_classes_filename):
                             'segmentations': [],
                             'area': width * height,
                             'iscrowd': 0,
-                            'image_id': img[:-4],
+                            'image_id': '.'.join(img.split('.')[:-1]),
                             'bbox': [ x_min, y_min, width, height ],
                             'category_id': int(cat),
                             'id': count
