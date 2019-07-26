@@ -61,24 +61,27 @@ Use `eyolo_prediction.py` to predict the bounding boxes of a image or a video us
 ```
 usage: eyolo_prediction.py [-h] --model MODEL --anchors ANCHORS --classes
                            CLASSES --input INPUT [--image] [--spp]
+                           [--output_path OUTPUT_PATH]
 
 optional arguments:
-  -h, --help         show this help message and exit
-  --model MODEL      path to model weight file
-  --anchors ANCHORS  path to anchor definitions
-  --classes CLASSES  path to class definitions
-  --input INPUT      Video/image input path
-  --image            Image detection mode
-  --spp              use this option if the model uses SPP
+  -h, --help            show this help message and exit
+  --model MODEL         path to model weight file
+  --anchors ANCHORS     path to anchor definitions
+  --classes CLASSES     path to class definitions
+  --input INPUT         Video/image input path
+  --image               Image detection mode
+  --spp                 use this option if the model uses SPP
+  --output_path OUTPUT_PATH
+                        output file where to store the result
 ```
 
 Image prediction sample:
 ```
-python eyolo_prediction.py --model base_models/yolo.h5 --anchors base_models/yolo_anchors.txt --classes base_models/coco_classes.txt --image --input test_images/image_1.jpg
+python eyolo_prediction.py --model base_models/yolo.h5 --anchors base_models/yolo_anchors.txt --classes base_models/coco_classes.txt --image --input test_images/image_1.jpg --output_path image_prediction.png
 ```
 Video prediction sample:
 ```
-python eyolo_prediction.py --model base_models/yolo.h5 --anchors base_models/yolo_anchors.txt --classes base_models/coco_classes.txt --input test_images/video_1.mp4
+python eyolo_prediction.py --model base_models/yolo.h5 --anchors base_models/yolo_anchors.txt --classes base_models/coco_classes.txt --input test_images/video_1.mp4 --output_path video_prediction.mp4
 ```
 
 
