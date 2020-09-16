@@ -1,6 +1,6 @@
 # Keras YOLO v3
 
-[Under development]
+Present project is not being updated anymore. Find recent updates [here](https://github.com/AlbertoSabater/Robust-and-efficient-post-processing-for-video-object-detection/tree/master/demos/YOLOv3).
 
 - [x] Spatial Pyramid Pooling (SPP)
 - [x] Multi-scale training
@@ -9,9 +9,6 @@
 - [x] Loss components (xy, wh, class, confidence_obj, confidence_noobj) weighting
 - [x] Loss components logging on TensorBoard
 - [x] Custom anchors generation
-- [ ] mAP TensorBoard logging metric
-- [ ] Bounding box post-processing for video predictions
-- [ ] Recurrent YOLO model
 
 ## Introduction
 
